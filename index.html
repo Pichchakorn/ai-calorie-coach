@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Calorie Coach - โค้ชแคลอรี่อัจฉริยะ</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2>กำลังเตรียมระบบ AI Calorie Coach</h2>
+            <p>โปรดรอสักครู่...</p>
+        </div>
+    </div>
+
+    <!-- Authentication Section -->
+    <div id="auth-section" class="auth-section hidden">
+        <div class="auth-container">
+            <div class="auth-header">
+                <h1>AI Calorie Coach</h1>
+                <p>โค้ชแคลอรี่อัจฉริยะ เฉพาะสำหรับคุณ</p>
+            </div>
+
+            <!-- Login Form -->
+            <div id="login-form" class="auth-form">
+                <h2>เข้าสู่ระบบ</h2>
+                <form id="login-form-element">
+                    <div class="form-group">
+                        <label for="login-email">อีเมล</label>
+                        <input type="email" id="login-email" required placeholder="demo@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">รหัสผ่าน</label>
+                        <input type="password" id="login-password" required placeholder="123456">
+                    </div>
+                    <button type="submit" class="btn btn-primary">เข้าสู่ระบบ</button>
+                </form>
+                
+                <div class="auth-switch">
+                    <p>ยังไม่มีบัญชี? <a href="#" id="switch-to-register">สมัครสมาชิก</a></p>
+                </div>
+
+                <div class="demo-info">
+                    <h3>🎯 ทดลองใช้งาน</h3>
+                    <p>อีเมล: demo@example.com</p>
+                    <p>รหัสผ่าน: 123456</p>
+                </div>
+            </div>
+
+            <!-- Register Form -->
+            <div id="register-form" class="auth-form hidden">
+                <h2>สมัครสมาชิก</h2>
+                <form id="register-form-element">
+                    <div class="form-group">
+                        <label for="register-name">ชื่อ-นามสกุล</label>
+                        <input type="text" id="register-name" required placeholder="นาย AI โค้ช">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-email">อีเมล</label>
+                        <input type="email" id="register-email" required placeholder="your@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">รหัสผ่าน</label>
+                        <input type="password" id="register-password" required placeholder="ขั้นต่ำ 6 ตัวอักษร">
+                    </div>
+                    <button type="submit" class="btn btn-primary">สมัครสมาชิก</button>
+                </form>
+                
+                <div class="auth-switch">
+                    <p>มีบัญชีแล้ว? <a href="#" id="switch-to-login">เข้าสู่ระบบ</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="main-app" class="main-app hidden">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <h1>AI Calorie Coach</h1>
+                    <span id="user-name-display">สวัสดี!</span>
+                </div>
+                <div class="nav-menu">
+                    <button id="nav-dashboard" class="nav-item active">
+                        <i class="fas fa-home"></i>
+                        <span>แดชบอร์ด</span>
+                    </button>
+                    <button id="nav-settings" class="nav-item">
+                        <i class="fas fa-cog"></i>
+                        <span>ตั้งค่า</span>
+                    </button>
+                    <button id="logout-btn" class="nav-item logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>ออกจากระบบ</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Dashboard Page -->
+        <div id="dashboard-page" class="page">
+            <div class="page-container">
+                <div class="page-header">
+                    <h2>แดชบอร์ด</h2>
+                    <p>จัดการแผนอาหารและติดตามแคลอรี่ของคุณ</p>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <div class="action-card" id="create-plan-btn">
+                        <div class="action-icon">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <div class="action-content">
+                            <h3>สร้างแผนอาหารใหม่</h3>
+                            <p>ให้ AI วิเคราะห์และแนะนำเมนูอาหารเฉพาะคุณ</p>
+                        </div>
+                    </div>
+
+                    <div class="action-card" id="quick-plan-btn">
+                        <div class="action-icon">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <div class="action-content">
+                            <h3>แผนด่วน</h3>
+                            <p>ใช้โปรไฟล์ปัจจุบันสร้างแผนอาหารทันที</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Plans -->
+                <div class="recent-plans">
+                    <h3>แผนอาหารล่าสุด</h3>
+                    <div id="recent-plans-list" class="plans-grid">
+                        <div class="empty-state">
+                            <i class="fas fa-utensils"></i>
+                            <p>ยังไม่มีแผนอาหาร</p>
+                            <button class="btn btn-primary" id="create-first-plan">สร้างแผนแรก</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="total-calories">0</div>
+                            <div class="stat-label">แคลอรี่รวมวันนี้</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="total-plans">0</div>
+                            <div class="stat-label">แผนอาหารทั้งหมด</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-target"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="goal-progress">0%</div>
+                            <div class="stat-label">ความคืบหน้าเป้าหมาย</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Page -->
+        <div id="settings-page" class="page hidden">
+            <div class="page-container">
+                <div class="page-header">
+                    <h2>ตั้งค่า</h2>
+                    <p>จัดการข้อมูลส่วนตัวและการตั้งค่าระบบ</p>
+                </div>
+
+                <div class="settings-section">
+                    <h3>ข้อมูลส่วนตัว</h3>
+                    <form id="profile-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-name">ชื่อ-นามสกุล</label>
+                                <input type="text" id="profile-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-age">อายุ (ปี)</label>
+                                <input type="number" id="profile-age" min="15" max="100" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-gender">เพศ</label>
+                                <select id="profile-gender" required>
+                                    <option value="">เลือกเพศ</option>
+                                    <option value="male">ชาย</option>
+                                    <option value="female">หญิง</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-height">ส่วนสูง (ซม.)</label>
+                                <input type="number" id="profile-height" min="100" max="250" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-weight">น้ำหนักปัจจุบัน (กก.)</label>
+                                <input type="number" id="profile-weight" min="30" max="300" step="0.1" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-target-weight">น้ำหนักเป้าหมาย (กก.)</label>
+                                <input type="number" id="profile-target-weight" min="30" max="300" step="0.1">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-activity">ระดับกิจกรรม</label>
+                                <select id="profile-activity" required>
+                                    <option value="">เลือกระดับกิจกรรม</option>
+                                    <option value="sedentary">นั่งทำงาน ไม่ออกกำลังกาย</option>
+                                    <option value="light">ออกกำลังกายเบาๆ 1-3 วัน/สัปดาห์</option>
+                                    <option value="moderate">ออกกำลังกายปานกลาง 3-5 วัน/สัปดาห์</option>
+                                    <option value="active">ออกกำลังกายหนัก 6-7 วัน/สัปดาห์</option>
+                                    <option value="very-active">ออกกำลังกายหนักมาก หรือมีงานใช้แรง</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-goal">เป้าหมาย</label>
+                                <select id="profile-goal" required>
+                                    <option value="">เลือกเป้าหมาย</option>
+                                    <option value="lose">ลดน้ำหนัก</option>
+                                    <option value="maintain">รักษาน้ำหนัก</option>
+                                    <option value="gain">เพิ่มน้ำหนัก</option>
+                                    <option value="muscle">เพิ่มกล้ามเนื้อ</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">บันทึกข้อมูล</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="settings-section">
+                    <h3>การตั้งค่าอื่นๆ</h3>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>โหมดมืด</span>
+                            <input type="checkbox" id="dark-mode-toggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>การแจ้งเตือน</span>
+                            <input type="checkbox" id="notifications-toggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Form Page -->
+        <div id="profile-form-page" class="page hidden">
+            <div class="page-container">
+                <div class="page-header">
+                    <button id="back-to-dashboard" class="btn btn-ghost">
+                        <i class="fas fa-arrow-left"></i>
+                        กลับไปแดชบอร์ด
+                    </button>
+                    <h2>ข้อมูลสำหรับสร้างแผนอาหาร</h2>
+                    <p>กรอกข้อมูลเพื่อให้ AI วิเคราะห์และแนะนำแผนอาหารที่เหมาะกับคุณ</p>
+                </div>
+
+                <form id="meal-plan-form" class="meal-plan-form">
+                    <!-- ฟอร์มเดียวกับใน Settings แต่สำหรับสร้างแผนอาหาร -->
+                    <div class="form-section">
+                        <h3>ข้อมูลพื้นฐาน</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="plan-age">อายุ (ปี)</label>
+                                <input type="number" id="plan-age" min="15" max="100" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="plan-gender">เพศ</label>
+                                <select id="plan-gender" required>
+                                    <option value="">เลือกเพศ</option>
+                                    <option value="male">ชาย</option>
+                                    <option value="female">หญิง</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="plan-height">ส่วนสูง (ซม.)</label>
+                                <input type="number" id="plan-height" min="100" max="250" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="plan-weight">น้ำหนักปัจจุบัน (กก.)</label>
+                                <input type="number" id="plan-weight" min="30" max="300" step="0.1" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>เป้าหมายและกิจกรรม</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="plan-activity">ระดับกิจกรรม</label>
+                                <select id="plan-activity" required>
+                                    <option value="">เลือกระดับกิจกรรม</option>
+                                    <option value="sedentary">นั่งทำงาน ไม่ออกกำลังกาย (BMR × 1.2)</option>
+                                    <option value="light">ออกกำลังกายเบาๆ 1-3 วัน/สัปดาห์ (BMR × 1.375)</option>
+                                    <option value="moderate">ออกกำลังกายปานกลาง 3-5 วัน/สัปดาห์ (BMR × 1.55)</option>
+                                    <option value="active">ออกกำลังกายหนัก 6-7 วัน/สัปดาห์ (BMR × 1.725)</option>
+                                    <option value="very-active">ออกกำลังกายหนักมาก หรือมีงานใช้แรง (BMR × 1.9)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="plan-goal">เป้าหมาย</label>
+                                <select id="plan-goal" required>
+                                    <option value="">เลือกเป้าหมาย</option>
+                                    <option value="lose">ลดน้ำหนัก (-500 แคลอรี่/วัน)</option>
+                                    <option value="maintain">รักษาน้ำหนัก (ตามที่คำนวณได้)</option>
+                                    <option value="gain">เพิ่มน้ำหนัก (+500 แคลอรี่/วัน)</option>
+                                    <option value="muscle">เพิ่มกล้ามเนื้อ (+300 แคลอรี่/วัน)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="plan-target-weight">น้ำหนักเป้าหมาย (กก.) - ไม่บังคับ</label>
+                                <input type="number" id="plan-target-weight" min="30" max="300" step="0.1" placeholder="ระบุน้ำหนักที่ต้องการ">
+                            </div>
+                            <div class="form-group">
+                                <label for="plan-timeframe">ระยะเวลาเป้าหมาย (เดือน) - ไม่บังคับ</label>
+                                <input type="number" id="plan-timeframe" min="1" max="24" placeholder="เช่น 3 เดือน">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" id="use-current-profile" class="btn btn-outline">ใช้โปรไฟล์ปัจจุบัน</button>
+                        <button type="submit" class="btn btn-primary">คำนวณและสร้างแผน</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Page -->
+        <div id="results-page" class="page hidden">
+            <div class="page-container">
+                <div class="page-header">
+                    <button id="back-to-dashboard-from-results" class="btn btn-ghost">
+                        <i class="fas fa-arrow-left"></i>
+                        แดชบอร์ด
+                    </button>
+                    <div class="results-header-content">
+                        <h2>แผนอาหารส่วนตัว</h2>
+                        <p id="results-user-info">สำหรับ...</p>
+                    </div>
+                    <div class="results-actions">
+                        <button id="create-new-plan-btn" class="btn btn-outline">
+                            <i class="fas fa-plus"></i>
+                            <span>สร้างแผนใหม่</span>
+                        </button>
+                        <button id="save-plan-btn" class="btn btn-primary">
+                            <i class="fas fa-save"></i>
+                            <span>บันทึกแผน</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <div class="tab-list">
+                        <button class="tab-trigger active" data-tab="overview">
+                            <i class="fas fa-chart-bar"></i>
+                            ภาพรวม
+                        </button>
+                        <button class="tab-trigger" data-tab="calories">
+                            <i class="fas fa-fire"></i>
+                            แคลอรี่
+                        </button>
+                        <button class="tab-trigger" data-tab="meals">
+                            <i class="fas fa-utensils"></i>
+                            เมนูอาหาร
+                        </button>
+                    </div>
+
+                    <!-- Overview Tab -->
+                    <div id="tab-overview" class="tab-content active">
+                        <div class="results-grid">
+                            <!-- Calorie Summary -->
+                            <div class="result-card">
+                                <div class="card-header">
+                                    <h3>สรุปแคลอรี่</h3>
+                                    <p>ความต้องการพลังงานรายวัน</p>
+                                </div>
+                                <div class="card-content">
+                                    <div class="calorie-summary">
+                                        <div class="calorie-item">
+                                            <div class="calorie-label">BMR (เผาผลาญพื้นฐาน)</div>
+                                            <div class="calorie-value" id="bmr-value">0</div>
+                                        </div>
+                                        <div class="calorie-item">
+                                            <div class="calorie-label">TDEE (รวมกิจกรรม)</div>
+                                            <div class="calorie-value" id="tdee-value">0</div>
+                                        </div>
+                                        <div class="calorie-item target">
+                                            <div class="calorie-label">เป้าหมายต่อวัน</div>
+                                            <div class="calorie-value" id="target-value">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Meal Summary -->
+                            <div class="result-card">
+                                <div class="card-header">
+                                    <h3>สรุปแผนอาหารวันนี้</h3>
+                                    <p>เมนูที่ AI แนะนำเฉพาะสำหรับคุณ</p>
+                                </div>
+                                <div class="card-content">
+                                    <div class="meal-summary">
+                                        <div class="summary-stats">
+                                            <div class="stat-item">
+                                                <div class="stat-number" id="total-meal-calories">0</div>
+                                                <div class="stat-label">แคลอรี่รวม</div>
+                                            </div>
+                                            <div class="stat-item">
+                                                <div class="stat-number" id="total-meals">0</div>
+                                                <div class="stat-label">เมนูทั้งหมด</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="meal-breakdown">
+                                            <div class="breakdown-item">
+                                                <span>อาหารเช้า</span>
+                                                <span id="breakfast-count">0 เมนู</span>
+                                            </div>
+                                            <div class="breakdown-item">
+                                                <span>อาหารกลางวัน</span>
+                                                <span id="lunch-count">0 เมนู</span>
+                                            </div>
+                                            <div class="breakdown-item">
+                                                <span>อาหารเย็น</span>
+                                                <span id="dinner-count">0 เมนู</span>
+                                            </div>
+                                            <div class="breakdown-item">
+                                                <span>ของว่าง</span>
+                                                <span id="snacks-count">0 เมนู</span>
+                                            </div>
+                                        </div>
+
+                                        <button id="randomize-meals-btn" class="btn btn-outline full-width">
+                                            <i class="fas fa-dice"></i>
+                                            สุ่มเมนูใหม่
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Calories Tab -->
+                    <div id="tab-calories" class="tab-content">
+                        <div class="calorie-details">
+                            <div class="result-card">
+                                <div class="card-header">
+                                    <h3>รายละเอียดการคำนวณแคลอรี่</h3>
+                                    <p>วิธีการที่ AI ใช้คำนวณความต้องการพลังงานของคุณ</p>
+                                </div>
+                                <div class="card-content">
+                                    <div class="calculation-steps">
+                                        <div class="step">
+                                            <div class="step-number">1</div>
+                                            <div class="step-content">
+                                                <h4>คำนวณ BMR (Basal Metabolic Rate)</h4>
+                                                <p>ใช้สูตร Mifflin-St Jeor เพื่อหาอัตราการเผาผลาญพื้นฐาน</p>
+                                                <div class="formula" id="bmr-formula">BMR = ...</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="step">
+                                            <div class="step-number">2</div>
+                                            <div class="step-content">
+                                                <h4>คำนวณ TDEE (Total Daily Energy Expenditure)</h4>
+                                                <p>คำนึงถึงระดับกิจกรรมประจำวัน</p>
+                                                <div class="formula" id="tdee-formula">TDEE = BMR × ตัวคูณกิจกรรม</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="step">
+                                            <div class="step-number">3</div>
+                                            <div class="step-content">
+                                                <h4>ปรับตามเป้าหมาย</h4>
+                                                <p>เพิ่มหรือลดแคลอรี่ตามเป้าหมายของคุณ</p>
+                                                <div class="formula" id="goal-formula">เป้าหมาย = TDEE ± แคลอรี่ปรับ</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="recommendation">
+                                        <h4>🎯 คำแนะนำจาก AI</h4>
+                                        <p id="ai-recommendation">...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Meals Tab -->
+                    <div id="tab-meals" class="tab-content">
+                        <div class="meals-container">
+                            <!-- Breakfast -->
+                            <div class="meal-section">
+                                <div class="meal-header">
+                                    <h3>🌅 อาหารเช้า</h3>
+                                    <div class="meal-calories" id="breakfast-calories">0 แคลอรี่</div>
+                                </div>
+                                <div class="meal-items" id="breakfast-items">
+                                    <!-- Breakfast items will be populated here -->
+                                </div>
+                            </div>
+
+                            <!-- Lunch -->
+                            <div class="meal-section">
+                                <div class="meal-header">
+                                    <h3>🌞 อาหารกลางวัน</h3>
+                                    <div class="meal-calories" id="lunch-calories">0 แคลอรี่</div>
+                                </div>
+                                <div class="meal-items" id="lunch-items">
+                                    <!-- Lunch items will be populated here -->
+                                </div>
+                            </div>
+
+                            <!-- Dinner -->
+                            <div class="meal-section">
+                                <div class="meal-header">
+                                    <h3>🌙 อาหารเย็น</h3>
+                                    <div class="meal-calories" id="dinner-calories">0 แคลอรี่</div>
+                                </div>
+                                <div class="meal-items" id="dinner-items">
+                                    <!-- Dinner items will be populated here -->
+                                </div>
+                            </div>
+
+                            <!-- Snacks -->
+                            <div class="meal-section">
+                                <div class="meal-header">
+                                    <h3>🍎 ของว่าง</h3>
+                                    <div class="meal-calories" id="snacks-calories">0 แคลอรี่</div>
+                                </div>
+                                <div class="meal-items" id="snacks-items">
+                                    <!-- Snack items will be populated here -->
+                                </div>
+                            </div>
+
+                            <div class="meal-actions">
+                                <button id="regenerate-all-meals" class="btn btn-primary">
+                                    <i class="fas fa-sync-alt"></i>
+                                    สุ่มเมนูทั้งหมดใหม่
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="data.js"></script>
+    <script src="auth.js"></script>
+    <script src="calculator.js"></script>
+    <script src="meal-planner.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

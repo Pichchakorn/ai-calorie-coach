@@ -12,7 +12,7 @@ interface AuthContextType {
   login: (data: LoginData) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
-  updateUser: (updates: Partial<Pick<User, 'name' | 'profile'>>) => Promise<void>;
+  updateUser: (updates: Partial<Pick<User, 'name' | 'profile' | 'email'>>) => Promise<void>;
   refreshRecentPlans: () => Promise<void>;
 }
 
@@ -311,15 +311,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   // อัปเดตข้อมูลผู้ใช้
-  const updateUser = async (updates: Partial<Pick<User, 'name' | 'profile'>>) => {
+  const updateUser = async (updates: Partial<Pick<User, 'name' | 'profile' | 'email'>>) => {
     if (!user || !authService) return;
 
     try {
-      await authService.updateUser(user.id, updates);
-      
+      await authService.updateUser(updates);
+
       // อัปเดต user state
       setUser(prev => prev ? { ...prev, ...updates } : null);
-      
+
       toast.success('บันทึกข้อมูลสำเร็จ ✅');
     } catch (error) {
       console.error('Update user error:', error);
@@ -327,6 +327,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw error;
     }
   };
+
 
   // รีเฟรชแผนล่าสุด
   const refreshRecentPlans = async () => {

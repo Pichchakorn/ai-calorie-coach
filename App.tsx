@@ -18,7 +18,6 @@ import { calculateTargetCalories, calculateTDEE, generateMealPlan } from './util
 import { ArrowLeft, BarChart3, Calendar, Utensils, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
-
 function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center">

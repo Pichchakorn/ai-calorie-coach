@@ -1,44 +1,93 @@
-// services/firebase.ts
 import { auth, db } from '../firebase/config';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  updateEmail,
+  signOut,
+  onAuthStateChanged
+} from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default {
   auth: {
     login: async (email: string, password: string) => {
-      const userCredential = await auth.signInWithEmailAndPassword(email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       return userCredential.user;
     },
+
     register: async (email: string, password: string) => {
-      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       return userCredential.user;
     },
+
     logout: async () => {
-      await auth.signOut();
+      await signOut(auth);
     },
+
     getCurrentUser: async () => auth.currentUser,
-    updateUser: async (data: any) => {
+
+    updateUser: async (updates: { name?: string; profile?: any; email?: string }) => {
       const user = auth.currentUser;
-      if (user) {
-        await user.updateProfile(data);
-        return user;
+      if (!user) throw new Error('No user logged in');
+
+      // ✅ อัปเดต Firebase Auth
+      try {
+        if (updates.name || updates.profile?.photoURL) {
+          await updateProfile(user, {
+            displayName: updates.name ?? user.displayName,
+            photoURL: updates.profile?.photoURL ?? user.photoURL ?? null
+          });
+        }
+
+        if (updates.email && updates.email !== user.email) {
+          await updateEmail(user, updates.email);
+        }
+      } catch (err) {
+        console.error('❌ Failed to update Firebase Auth:', err);
+        throw err;
       }
-      throw new Error('No user logged in');
+
+      // ✅ อัปเดต Firestore
+      try {
+        const ref = doc(db, 'users', user.uid);
+        await setDoc(
+          ref,
+          {
+            name: updates.name,
+            profile: updates.profile,
+            email: updates.email,
+            updatedAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error('❌ Failed to update Firestore:', err);
+        throw err;
+      }
+
+      return user;
     },
-    onAuthStateChanged: (cb: (user: any) => void) => auth.onAuthStateChanged(cb)
+
+    onAuthStateChanged: (cb: (user: any) => void) => onAuthStateChanged(auth, cb)
   },
+
   dailyPlans: {
-    createDailyPlan: async () => {/* เขียนตามโปรเจกต์คุณ */},
-    getUserDailyPlans: async () => {/* เขียนตามโปรเจกต์คุณ */},
-    getDailyPlan: async () => {/* เขียนตามโปรเจกต์คุณ */},
-    updateDailyPlan: async () => {/* เขียนตามโปรเจกต์คุณ */},
-    deleteDailyPlan: async () => {/* เขียนตามโปรเจกต์คุณ */},
+    createDailyPlan: async () => {},
+    getUserDailyPlans: async () => {},
+    getDailyPlan: async () => {},
+    updateDailyPlan: async () => {},
+    deleteDailyPlan: async () => {},
     onUserDailyPlansChange: () => () => {}
   },
+
   userPreferences: {
-    saveUserPreferences: async () => {/* เขียนตามโปรเจกต์คุณ */},
+    saveUserPreferences: async () => {},
     getUserPreferences: async () => ({})
   },
+
   healthStats: {
-    recordDailyStats: async () => {/* เขียนตามโปรเจกต์คุณ */},
+    recordDailyStats: async () => {},
     getHealthStats: async () => []
   }
 };

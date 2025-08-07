@@ -42,7 +42,7 @@ import {
   AlertTriangle,
   Info,
 } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 export function Settings() {
   const { user, updateUser } = useAuth();
@@ -92,7 +92,6 @@ export function Settings() {
 
     updateUser({
       name: userInfo.name,
-      email: userInfo.email,
     });
     setIsEditing(false);
   };

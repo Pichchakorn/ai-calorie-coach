@@ -16,7 +16,7 @@ import { Toaster } from './components/ui/sonner';
 import { UserProfile, CalorieCalculation, MealPlan, DailyPlan } from './types';
 import { calculateTargetCalories, calculateTDEE, generateMealPlan } from './utils/calculations';
 import { ArrowLeft, BarChart3, Calendar, Utensils, Plus } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from "sonner";
 
 function LoadingScreen() {
   return (

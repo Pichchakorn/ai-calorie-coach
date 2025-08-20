@@ -1,51 +1,14 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker } from "react-day-picker"
-import { cn } from "./utils"
-import { buttonVariants } from "./button"
+import * as React from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { DayPicker } from "react-day-picker";
 
-type CustomNavigationProps = {
-  onPreviousClick?: React.MouseEventHandler<HTMLButtonElement>
-  onNextClick?: React.MouseEventHandler<HTMLButtonElement>
-  label?: string
-} & React.HTMLAttributes<HTMLDivElement>
+import { cn } from "./utils";
+import { buttonVariants } from "./button";
 
-const CustomNavigation = ({
-  onPreviousClick,
-  onNextClick,
-  label,
-  className,
-  ...props
-}: CustomNavigationProps) => {
-  return (
-    <div className={cn("flex items-center justify-between px-2", className)} {...props}>
-      <button
-        type="button"
-        onClick={onPreviousClick}
-        className={cn(
-          buttonVariants({ variant: "outline" }),
-          "size-7 p-0 bg-transparent opacity-50 hover:opacity-100"
-        )}
-      >
-        <ChevronLeft className="size-4" />
-      </button>
-      {label && <span className="text-sm font-medium">{label}</span>}
-      <button
-        type="button"
-        onClick={onNextClick}
-        className={cn(
-          buttonVariants({ variant: "outline" }),
-          "size-7 p-0 bg-transparent opacity-50 hover:opacity-100"
-        )}
-      >
-        <ChevronRight className="size-4" />
-      </button>
-    </div>
-  )
-}
-
+// ✅ type ปลอดภัยสำหรับ props ของไอคอน (svg)
+type IconProps = React.ComponentProps<"svg"> & { className?: string };
 
 function Calendar({
   className,
@@ -65,7 +28,7 @@ function Calendar({
         nav: "flex items-center gap-1",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
-          "size-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+          "size-7 bg-transparent p-0 opacity-50 hover:opacity-100",
         ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
@@ -78,11 +41,11 @@ function Calendar({
           "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-range-end)]:rounded-r-md",
           props.mode === "range"
             ? "[&:has(>.day-range-end)]:rounded-r-md [&:has(>.day-range-start)]:rounded-l-md first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md"
-            : "[&:has([aria-selected])]:rounded-md"
+            : "[&:has([aria-selected])]:rounded-md",
         ),
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "size-8 p-0 font-normal aria-selected:opacity-100"
+          "size-8 p-0 font-normal aria-selected:opacity-100",
         ),
         day_range_start:
           "day-range-start aria-selected:bg-primary aria-selected:text-primary-foreground",
@@ -97,14 +60,22 @@ function Calendar({
         day_range_middle:
           "aria-selected:bg-accent aria-selected:text-accent-foreground",
         day_hidden: "invisible",
-        ...classNames
+        ...classNames,
       }}
-      components={{
-        Nav: CustomNavigation
-      }}
+      // ✅ บางเวอร์ชันไม่มี IconLeft/IconRight ใน type → แคสต์เป็น any ให้ข้ามข้อผิดพลาด
+      components={
+        {
+          IconLeft: ({ className, ...p }: IconProps) => (
+            <ChevronLeft className={cn("size-4", className)} {...p} />
+          ),
+          IconRight: ({ className, ...p }: IconProps) => (
+            <ChevronRight className={cn("size-4", className)} {...p} />
+          ),
+        } as any
+      }
       {...props}
     />
-  )
+  );
 }
 
-export { Calendar }
+export { Calendar };

@@ -90,8 +90,20 @@ async function getCurrentUserInternal(): Promise<User | null> {
 export const authService = {
   // data: { email, password }
   async login(data: LoginData): Promise<User> {
-    const cred = await signInWithEmailAndPassword(auth, data.email, data.password);
-    return ensureUserDocument(cred.user);
+    try {
+      const cred = await signInWithEmailAndPassword(
+        auth,
+        data.email.trim(),
+        data.password
+      );
+      return ensureUserDocument(cred.user);
+    } catch (err: any) {
+      // ช่วยดีบัก: ดู code ที่แท้จริง
+      console.error('🔴 Firebase login failed:', err?.code, err);
+
+      // โยน error ต่อไปให้ AuthContext แปลข้อความไทยตามเดิม
+      throw err;
+    }
   },
 
   // data: { name, email, password, confirmPassword? }

@@ -22,20 +22,31 @@ import {
   where,
   limit as qLimit,
   Timestamp,
+  DocumentData,
 } from 'firebase/firestore';
 
-import type { User, RegisterData, LoginData, UserProfile, DailyPlan } from '../types';
+import type {
+  User,
+  RegisterData,
+  LoginData,
+  UserProfile,
+  DailyPlan,
+} from '../types';
 
 // ------------- helpers -------------
-function tsToISO(ts?: Timestamp | null): string | undefined {
-  if (!ts) return undefined;
-  return ts.toDate().toISOString();
+function tsToISO(value: unknown): string | undefined {
+  // เผื่อกรณียังเป็น FieldValue (จาก serverTimestamp ยังไม่ resolve)
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  return undefined;
 }
-
 function nowISO() {
   return new Date().toISOString();
 }
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
 
+// map FbUser + Firestore 'users' doc → User
 function fbUserBasic(u: FbUser) {
   return {
     uid: u.uid,
@@ -54,26 +65,25 @@ async function ensureUserDocument(u: FbUser): Promise<User> {
       id: u.uid,
       name: u.displayName ?? 'ผู้ใช้ใหม่',
       email: u.email ?? '',
-      // photoURL: u.photoURL ?? undefined,
-      profile: undefined, // ผู้ใช้ยังไม่ตั้งค่า
+      profile: undefined,
       createdAt: nowISO(),
       updatedAt: nowISO(),
     };
     await setDoc(ref, {
       ...base,
+      // ให้ Firestore จัดการเวลา
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
     return base;
   }
 
-  const data = snap.data() as any;
+  const data = snap.data() as DocumentData;
   const mapped: User = {
     id: u.uid,
     name: data.name ?? u.displayName ?? 'ผู้ใช้',
     email: data.email ?? u.email ?? '',
-    // photoURL: data.photoURL ?? u.photoURL ?? undefined,
-    profile: data.profile as UserProfile | undefined,
+    profile: (data.profile as UserProfile | null) ?? undefined,
     createdAt: tsToISO(data.createdAt) ?? nowISO(),
     updatedAt: tsToISO(data.updatedAt) ?? nowISO(),
   };
@@ -88,41 +98,41 @@ async function getCurrentUserInternal(): Promise<User | null> {
 
 // ------------- Auth Service -------------
 export const authService = {
-  // data: { email, password }
   async login(data: LoginData): Promise<User> {
     try {
-      const cred = await signInWithEmailAndPassword(
-        auth,
-        data.email.trim(),
-        data.password
-      );
+      const email = normalizeEmail(data.email);
+      const cred = await signInWithEmailAndPassword(auth, email, data.password);
       return ensureUserDocument(cred.user);
     } catch (err: any) {
-      // ช่วยดีบัก: ดู code ที่แท้จริง
+      // สำคัญ: ถ้าเห็น auth/invalid-credential = อีเมล/รหัสไม่ถูก หรือ user ยังไม่มี
       console.error('🔴 Firebase login failed:', err?.code, err);
-
-      // โยน error ต่อไปให้ AuthContext แปลข้อความไทยตามเดิม
       throw err;
     }
   },
 
-  // data: { name, email, password, confirmPassword? }
   async register(data: RegisterData): Promise<User> {
-    const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
+    const email = normalizeEmail(data.email);
+    // สร้างผู้ใช้
+    const cred = await createUserWithEmailAndPassword(auth, email, data.password);
+
+    // set displayName
     if (data.name) {
       await fbUpdateProfile(cred.user, { displayName: data.name });
     }
-    // สร้างเอกสาร users
+
+    // สร้างเอกสาร users/{uid}
     const ref = doc(db, 'users', cred.user.uid);
     await setDoc(ref, {
       id: cred.user.uid,
       name: data.name ?? 'ผู้ใช้ใหม่',
-      email: data.email,
+      email,
       photoURL: cred.user.photoURL ?? null,
       profile: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    // คืนค่าเป็นรูปแบบ User
     return ensureUserDocument(cred.user);
   },
 
@@ -134,31 +144,45 @@ export const authService = {
     return getCurrentUserInternal();
   },
 
-  async updateUser(updates: Partial<Pick<User, 'name' | 'profile' | 'email'>>): Promise<void> {
+  async updateUser(
+    updates: Partial<Pick<User, 'name' | 'profile' | 'email'>>,
+  ): Promise<void> {
     const u = auth.currentUser;
     if (!u) throw new Error('No user logged in');
 
-    // อัปเดต Firebase Auth
-    if (updates.name && updates.name !== u.displayName) {
-      await fbUpdateProfile(u, { displayName: updates.name });
+    // Auth profile
+    if (typeof updates.name !== 'undefined' && updates.name !== u.displayName) {
+      await fbUpdateProfile(u, { displayName: updates.name ?? '' });
     }
-    if (updates.email && updates.email !== u.email) {
-      await fbUpdateEmail(u, updates.email);
+    if (
+      typeof updates.email !== 'undefined' &&
+      updates.email &&
+      normalizeEmail(updates.email) !== u.email
+    ) {
+      try {
+        await fbUpdateEmail(u, normalizeEmail(updates.email));
+      } catch (e: any) {
+        // บ่อยสุด: auth/requires-recent-login
+        console.error('updateEmail failed:', e?.code, e);
+        throw e;
+      }
     }
 
-    // อัปเดต Firestore
+    // Firestore doc
     const ref = doc(db, 'users', u.uid);
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       updatedAt: serverTimestamp(),
     };
     if (typeof updates.name !== 'undefined') payload.name = updates.name;
-    if (typeof updates.email !== 'undefined') payload.email = updates.email;
-    if (typeof updates.profile !== 'undefined') payload.profile = updates.profile;
+    if (typeof updates.email !== 'undefined')
+      payload.email = updates.email ? normalizeEmail(updates.email) : '';
+    if (typeof updates.profile !== 'undefined')
+      payload.profile = updates.profile ?? null;
 
     await setDoc(ref, payload, { merge: true });
   },
 
-  // for AuthContext listener
+  // Listener สำหรับ AuthContext
   onAuthStateChanged(cb: (u: unknown) => void) {
     return fbOnAuthStateChanged(auth, cb);
   },
@@ -166,24 +190,34 @@ export const authService = {
 
 // ------------- Daily Plans Service -------------
 /**
- * โครงสร้าง Firestore:
- *  - daily_plans (collection)
- *    - doc: { id, user_id, date, profile, calorieCalc, mealPlan, generatedAt, createdAt, updatedAt }
+ * Firestore:
+ *  - daily_plans
+ *    - { user_id, date(YYYY-MM-DD), profile, calorieCalc, mealPlan, generatedAt, createdAt, updatedAt }
+ *
+ * NOTE: ถ้า query ตาม user_id + orderBy date ต้องสร้าง composite index ใน Firestore Console
  */
 export const dailyPlansService = {
   async getUserDailyPlans(userId: string, limitN = 5): Promise<DailyPlan[]> {
     const col = collection(db, 'daily_plans');
-    const q = query(col, where('user_id', '==', userId), orderBy('date', 'desc'), qLimit(limitN));
+    const q = query(
+      col,
+      where('user_id', '==', userId),
+      orderBy('date', 'desc'),
+      qLimit(limitN),
+    );
     const snap = await getDocs(q);
 
     const plans: DailyPlan[] = [];
     snap.forEach((d) => {
       const data = d.data() as any;
       plans.push({
-        profile: data.profile,
+        profile: data.profile as UserProfile,
         calorieCalc: data.calorieCalc,
         mealPlan: data.mealPlan,
-        generatedAt: tsToISO(data.generatedAt) ?? tsToISO(data.createdAt) ?? nowISO(),
+        generatedAt:
+          tsToISO(data.generatedAt) ??
+          tsToISO(data.createdAt) ??
+          nowISO(),
       });
     });
     return plans;
@@ -212,7 +246,7 @@ export const dailyPlansService = {
   },
 };
 
-// ------------- meta for AuthContext (ไม่ให้ TS พัง) -------------
+// ------------- meta (ใช้โดย AuthContext) -------------
 export const getServicesStatus = () => ({
   isDevelopment: import.meta.env.MODE !== 'production',
 });
@@ -221,5 +255,5 @@ export const checkServicesHealth = async () => ({
   allServicesReady: !!auth && !!db,
 });
 
-// (optional) สำหรับโหมดเดโม่ - ไม่ต้องทำอะไรก็ได้
+// (optional) demo
 export const initializeDemoData = async () => {};

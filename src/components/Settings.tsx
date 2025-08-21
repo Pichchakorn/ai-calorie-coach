@@ -1,34 +1,30 @@
-import React, { useState, useEffect } from "react";
-import { Button } from "./ui/button";
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button } from './ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "./ui/card";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
+} from './ui/card';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "./ui/select";
-import { RadioGroup, RadioGroupItem } from "./ui/radio_group";
-import { Separator } from "./ui/separator";
-import { Badge } from "./ui/badge";
-import { Alert, AlertDescription } from "./ui/alert";
-import { useAuth } from "../contexts/AuthContext";
-import { UserProfile } from "../types";
+} from './ui/select';
+import { RadioGroup, RadioGroupItem } from './ui/radio_group';
+import { Badge } from './ui/badge';
+import { Alert, AlertDescription } from './ui/alert';
+import { useAuth } from '../contexts/AuthContext';
+import { UserProfile } from '../types';
 import {
-  formatCalories,
   formatWeight,
-  getGoalText,
-  getActivityText,
   validateGoal,
-} from "../utils/calculations";
+} from '../utils/calculations';
 import {
   Settings as SettingsIcon,
   User,
@@ -41,133 +37,159 @@ import {
   Minus,
   AlertTriangle,
   Info,
-} from "lucide-react";
-import { toast } from "sonner";
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+type Gender = UserProfile['gender'];
+type ActLevel = UserProfile['activityLevel'];
+type Goal = UserProfile['goal'];
 
 export function Settings() {
   const { user, updateUser } = useAuth();
+
   const [isEditing, setIsEditing] = useState(false);
+  const [savingUserInfo, setSavingUserInfo] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // ------- User info (display name) -------
   const [userInfo, setUserInfo] = useState({
-    name: user?.name || "",
-    email: user?.email || "",
+    name: user?.name ?? '',
+    email: user?.email ?? '',
   });
-  const [profile, setProfile] = useState<Partial<UserProfile>>(
-    user?.profile || {
-      gender: "male",
-      activityLevel: "moderate",
-      goal: "maintain",
-    },
+
+  // ------- Health profile -------
+  const defaultProfile: Partial<UserProfile> = useMemo(
+    () => ({
+      gender: 'male',
+      activityLevel: 'moderate',
+      goal: 'maintain',
+    }),
+    [],
   );
 
+  const [profile, setProfile] = useState<Partial<UserProfile>>(
+    user?.profile ?? defaultProfile,
+  );
+
+  // ------- Validation for goal -------
   const [goalValidation, setGoalValidation] = useState<{
     isValid: boolean;
     message?: string;
   }>({ isValid: true });
 
-  // ตรวจสอบความถูกต้องของเป้าหมายเมื่อข้อมูลเปลี่ยน
+  // sync เมื่อ user เปลี่ยน (เช่น refresh หรือ login ใหม่)
   useEffect(() => {
+    setUserInfo({
+      name: user?.name ?? '',
+      email: user?.email ?? '',
+    });
+    setProfile(user?.profile ?? defaultProfile);
+  }, [user, defaultProfile]);
+
+  // validate goal เมื่อค่าที่เกี่ยวข้องเปลี่ยน
+  useEffect(() => {
+    const p = profile;
     if (
-      profile.weight &&
-      profile.targetWeight &&
-      profile.timeframe &&
-      profile.goal !== "maintain"
+      p?.weight &&
+      p?.targetWeight &&
+      p?.timeframe &&
+      p?.goal &&
+      p.goal !== 'maintain'
     ) {
-      const validation = validateGoal(profile as UserProfile);
-      setGoalValidation(validation);
+      const full = p as UserProfile; // มี field ครบแล้ว
+      setGoalValidation(validateGoal(full));
     } else {
       setGoalValidation({ isValid: true });
     }
-  }, [
-    profile.weight,
-    profile.targetWeight,
-    profile.timeframe,
-    profile.goal,
-  ]);
+  }, [profile]);
 
-  const handleSaveUserInfo = () => {
+  // ------- Helpers -------
+  const safeInt = (v: string) => {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const safeFloat = (v: string) => {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  const isProfileValid =
+    !!profile.age &&
+    !!profile.weight &&
+    !!profile.height &&
+    !!profile.gender &&
+    !!profile.activityLevel &&
+    !!profile.goal &&
+    goalValidation.isValid;
+
+  const goalPreview = useMemo(() => {
+    const p = profile;
+    if (
+      !p?.weight ||
+      !p?.targetWeight ||
+      !p?.timeframe ||
+      p.goal === 'maintain'
+    ) {
+      return null;
+    }
+    const weightDifference = Math.abs(p.weight - p.targetWeight);
+    const weeklyChange = weightDifference / p.timeframe;
+    return { weightDifference, weeklyChange, timeframe: p.timeframe };
+  }, [profile]);
+
+  // ------- Actions -------
+  const handleSaveUserInfo = async () => {
     if (!userInfo.name.trim()) {
-      toast.error("กรุณากรอกชื่อ");
+      toast.error('กรุณากรอกชื่อ');
       return;
     }
-
-    updateUser({
-      name: userInfo.name,
-    });
-    setIsEditing(false);
+    try {
+      setSavingUserInfo(true);
+      await updateUser({ name: userInfo.name.trim() });
+      toast.success('บันทึกชื่อสำเร็จ ✅');
+      setIsEditing(false);
+    } catch (e: any) {
+      // toast ถูกยิงใน context แล้ว แต่เพิ่มข้อความชัดๆอีกครั้ง
+      toast.error('บันทึกชื่อไม่สำเร็จ');
+    } finally {
+      setSavingUserInfo(false);
+    }
   };
 
-  const handleSaveProfile = () => {
-    if (!profile.age || !profile.weight || !profile.height) {
-      toast.error("กรุณากรอกข้อมูลส่วนตัวให้ครบถ้วน");
+  const handleSaveProfile = async () => {
+    if (!isProfileValid) {
+      toast.error('กรุณากรอกข้อมูลโปรไฟล์ให้ครบถ้วน');
       return;
     }
-
-    if (!goalValidation.isValid) {
-      toast.error("กรุณาตรวจสอบเป้าหมายของคุณ");
-      return;
+    try {
+      setSavingProfile(true);
+      await updateUser({ profile: profile as UserProfile });
+      toast.success('บันทึกโปรไฟล์สำเร็จ ✅');
+    } catch (e: any) {
+      toast.error('บันทึกโปรไฟล์ไม่สำเร็จ');
+    } finally {
+      setSavingProfile(false);
     }
-
-    updateUser({
-      profile: profile as UserProfile,
-    });
   };
 
-  const handleGoalChange = (goal: UserProfile["goal"]) => {
+  const handleGoalChange = (goal: Goal) => {
     setProfile((prev) => ({
       ...prev,
       goal,
-      // รีเซ็ตเป้าหมายเมื่อเปลี่ยนประเภท
-      targetWeight:
-        goal === "maintain" ? undefined : prev.targetWeight,
-      timeframe:
-        goal === "maintain" ? undefined : prev.timeframe,
+      targetWeight: goal === 'maintain' ? undefined : prev.targetWeight,
+      timeframe: goal === 'maintain' ? undefined : prev.timeframe,
     }));
   };
 
   const handleDeleteAccount = () => {
-    // In a real app, this would show a confirmation dialog
     const confirmed = window.confirm(
-      "คุณแน่ใจหรือไม่ที่จะลบบัญชี? การกระทำนี้ไม่สามารถยกเลิกได้",
+      'คุณแน่ใจหรือไม่ที่จะลบบัญชี? การกระทำนี้ไม่สามารถยกเลิกได้',
     );
     if (confirmed) {
-      // In real app, would call API to delete account
-      toast.success("ลบบัญชีสำเร็จ (Demo)");
+      // TODO: เชื่อม flow ลบบัญชีจริง (Auth + ลบ collection ที่เกี่ยวข้อง)
+      toast.success('ลบบัญชีสำเร็จ (เดโม)');
     }
   };
-
-  const isProfileValid =
-    profile.age &&
-    profile.weight &&
-    profile.height &&
-    profile.gender &&
-    profile.activityLevel &&
-    profile.goal &&
-    goalValidation.isValid;
-
-  // คำนวณข้อมูลสำหรับแสดงผล
-  const getGoalPreview = () => {
-    if (
-      !profile.weight ||
-      !profile.targetWeight ||
-      !profile.timeframe ||
-      profile.goal === "maintain"
-    ) {
-      return null;
-    }
-
-    const weightDifference = Math.abs(
-      profile.weight - profile.targetWeight,
-    );
-    const weeklyChange = weightDifference / profile.timeframe;
-
-    return {
-      weightDifference,
-      weeklyChange,
-      timeframe: profile.timeframe,
-    };
-  };
-
-  const goalPreview = getGoalPreview();
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-8">
@@ -177,18 +199,16 @@ export function Settings() {
           <span
             style={{
               background:
-                "linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.75 0.18 330))",
-              backgroundClip: "text",
-              WebkitBackgroundClip: "text",
-              color: "transparent",
+                'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.75 0.18 330))',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              color: 'transparent',
             }}
           >
             ตั้งค่าบัญชี
           </span>
         </h1>
-        <p className="text-muted-foreground">
-          จัดการข้อมูลส่วนตัวและตั้งค่าต่าง ๆ
-        </p>
+        <p className="text-muted-foreground">จัดการข้อมูลส่วนตัวและตั้งค่าต่าง ๆ</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -196,7 +216,7 @@ export function Settings() {
         <Card
           style={{
             boxShadow:
-              "0 4px 14px 0 oklch(0.6 0.2 230 / 0.2), 0 0 0 1px oklch(0.6 0.2 230 / 0.1)",
+              '0 4px 14px 0 oklch(0.6 0.2 230 / 0.2), 0 0 0 1px oklch(0.6 0.2 230 / 0.1)',
           }}
         >
           <CardHeader>
@@ -204,53 +224,35 @@ export function Settings() {
               <User className="h-5 w-5 text-ocean" />
               <span className="text-ocean">ข้อมูลผู้ใช้</span>
             </CardTitle>
-            <CardDescription>
-              ข้อมูลพื้นฐานของบัญชีของคุณ
-            </CardDescription>
+            <CardDescription>ข้อมูลพื้นฐานของบัญชีของคุณ</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isEditing ? (
               <>
                 <div className="space-y-2">
-                  <Label
-                    htmlFor="name"
-                    className="text-deep-blue font-medium"
-                  >
+                  <Label htmlFor="name" className="text-deep-blue font-medium">
                     ชื่อ-นามสกุล
                   </Label>
                   <Input
                     id="name"
                     value={userInfo.name}
                     onChange={(e) =>
-                      setUserInfo((prev) => ({
-                        ...prev,
-                        name: e.target.value,
-                      }))
+                      setUserInfo((prev) => ({ ...prev, name: e.target.value }))
                     }
                     placeholder="ชื่อ นามสกุล"
                     className="border-ocean/30 focus:border-ocean focus:ring-ocean/20"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label
-                    htmlFor="email"
-                    className="text-deep-blue font-medium"
-                  >
+                  <Label htmlFor="email" className="text-deep-blue font-medium">
                     อีเมล
                   </Label>
                   <Input
                     id="email"
                     type="email"
                     value={userInfo.email}
-                    onChange={(e) =>
-                      setUserInfo((prev) => ({
-                        ...prev,
-                        email: e.target.value,
-                      }))
-                    }
-                    placeholder="your@email.com"
-                    className="bg-muted border-muted"
                     disabled
+                    className="bg-muted border-muted"
                   />
                   <p className="text-xs text-muted-foreground">
                     อีเมลไม่สามารถเปลี่ยนแปลงได้
@@ -260,24 +262,26 @@ export function Settings() {
                   <Button
                     onClick={handleSaveUserInfo}
                     size="sm"
+                    disabled={savingUserInfo}
                     className="text-white"
                     style={{
                       background:
-                        "linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))",
+                        'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))',
                     }}
                   >
                     <Save className="h-4 w-4 mr-2" />
-                    บันทึก
+                    {savingUserInfo ? 'กำลังบันทึก...' : 'บันทึก'}
                   </Button>
                   <Button
+                    type="button"
                     variant="outline"
                     size="sm"
                     className="border-sunset text-sunset hover:bg-sunset/10"
                     onClick={() => {
                       setIsEditing(false);
                       setUserInfo({
-                        name: user?.name || "",
-                        email: user?.email || "",
+                        name: user?.name ?? '',
+                        email: user?.email ?? '',
                       });
                     }}
                   >
@@ -288,33 +292,22 @@ export function Settings() {
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label className="text-deep-blue font-medium">
-                    ชื่อ-นามสกุล
-                  </Label>
-                  <p className="text-lg text-ocean">
-                    {user?.name}
-                  </p>
+                  <Label className="text-deep-blue font-medium">ชื่อ-นามสกุล</Label>
+                  <p className="text-lg text-ocean">{user?.name}</p>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-deep-blue font-medium">
-                    อีเมล
-                  </Label>
-                  <p className="text-lg text-sunset">
-                    {user?.email}
-                  </p>
+                  <Label className="text-deep-blue font-medium">อีเมล</Label>
+                  <p className="text-lg text-sunset">{user?.email}</p>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-deep-blue font-medium">
-                    สมาชิกตั้งแต่
-                  </Label>
+                  <Label className="text-deep-blue font-medium">สมาชิกตั้งแต่</Label>
                   <p className="text-sm text-muted-foreground">
                     {user?.createdAt &&
-                      new Date(
-                        user.createdAt,
-                      ).toLocaleDateString("th-TH")}
+                      new Date(user.createdAt).toLocaleDateString('th-TH')}
                   </p>
                 </div>
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setIsEditing(true)}
@@ -331,7 +324,7 @@ export function Settings() {
         <Card
           style={{
             boxShadow:
-              "0 4px 14px 0 oklch(0.75 0.18 330 / 0.2), 0 0 0 1px oklch(0.75 0.18 330 / 0.1)",
+              '0 4px 14px 0 oklch(0.75 0.18 330 / 0.2), 0 0 0 1px oklch(0.75 0.18 330 / 0.1)',
           }}
         >
           <CardHeader>
@@ -339,23 +332,16 @@ export function Settings() {
               <Target className="h-5 w-5 text-sunset" />
               <span className="text-sunset">โปรไฟล์สุขภาพ</span>
             </CardTitle>
-            <CardDescription>
-              ข้อมูลสำหรับคำนวณแคลอรี่และแผนอาหาร
-            </CardDescription>
+            <CardDescription>ข้อมูลสำหรับคำนวณแคลอรี่และแผนอาหาร</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* เพศ */}
             <div className="space-y-3">
-              <Label className="text-deep-blue font-medium">
-                เพศ
-              </Label>
+              <Label className="text-deep-blue font-medium">เพศ</Label>
               <RadioGroup
-                value={profile.gender}
-                onValueChange={(value: "male" | "female") =>
-                  setProfile((prev) => ({
-                    ...prev,
-                    gender: value,
-                  }))
+                value={(profile.gender ?? 'male') as Gender}
+                onValueChange={(value: string) =>
+                  setProfile((prev) => ({ ...prev, gender: value as Gender }))
                 }
                 className="flex gap-6"
               >
@@ -363,20 +349,13 @@ export function Settings() {
                   className="flex items-center space-x-2 p-3 rounded-lg border border-ocean/20 hover:bg-ocean/5"
                   style={{
                     background:
-                      profile.gender === "male"
-                        ? "oklch(0.95 0.05 230 / 0.3)"
-                        : "transparent",
+                      profile.gender === 'male'
+                        ? 'oklch(0.95 0.05 230 / 0.3)'
+                        : 'transparent',
                   }}
                 >
-                  <RadioGroupItem
-                    value="male"
-                    id="male"
-                    className="border-ocean text-ocean"
-                  />
-                  <Label
-                    htmlFor="male"
-                    className="text-ocean cursor-pointer"
-                  >
+                  <RadioGroupItem value="male" id="male" className="border-ocean text-ocean" />
+                  <Label htmlFor="male" className="text-ocean cursor-pointer">
                     ชาย
                   </Label>
                 </div>
@@ -384,9 +363,9 @@ export function Settings() {
                   className="flex items-center space-x-2 p-3 rounded-lg border border-sunset/20 hover:bg-sunset/5"
                   style={{
                     background:
-                      profile.gender === "female"
-                        ? "oklch(0.95 0.05 330 / 0.3)"
-                        : "transparent",
+                      profile.gender === 'female'
+                        ? 'oklch(0.95 0.05 330 / 0.3)'
+                        : 'transparent',
                   }}
                 >
                   <RadioGroupItem
@@ -394,10 +373,7 @@ export function Settings() {
                     id="female"
                     className="border-sunset text-sunset"
                   />
-                  <Label
-                    htmlFor="female"
-                    className="text-sunset cursor-pointer"
-                  >
+                  <Label htmlFor="female" className="text-sunset cursor-pointer">
                     หญิง
                   </Label>
                 </div>
@@ -407,70 +383,52 @@ export function Settings() {
             {/* อายุ น้ำหนัก ส่วนสูง */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label
-                  htmlFor="age"
-                  className="text-deep-blue font-medium"
-                >
+                <Label htmlFor="age" className="text-deep-blue font-medium">
                   อายุ (ปี)
                 </Label>
                 <Input
                   id="age"
                   type="number"
-                  min="15"
-                  max="100"
-                  value={profile.age || ""}
+                  min={15}
+                  max={100}
+                  value={profile.age ?? ''}
                   onChange={(e) =>
-                    setProfile((prev) => ({
-                      ...prev,
-                      age: parseInt(e.target.value) || 0,
-                    }))
+                    setProfile((prev) => ({ ...prev, age: safeInt(e.target.value) }))
                   }
                   placeholder="25"
                   className="border-ocean/30 focus:border-ocean focus:ring-ocean/20"
                 />
               </div>
               <div className="space-y-2">
-                <Label
-                  htmlFor="weight"
-                  className="text-deep-blue font-medium"
-                >
+                <Label htmlFor="weight" className="text-deep-blue font-medium">
                   น้ำหนักปัจจุบัน (กก.)
                 </Label>
                 <Input
                   id="weight"
                   type="number"
-                  min="30"
-                  max="200"
-                  step="0.1"
-                  value={profile.weight || ""}
+                  min={30}
+                  max={200}
+                  step={0.1}
+                  value={profile.weight ?? ''}
                   onChange={(e) =>
-                    setProfile((prev) => ({
-                      ...prev,
-                      weight: parseFloat(e.target.value) || 0,
-                    }))
+                    setProfile((prev) => ({ ...prev, weight: safeFloat(e.target.value) }))
                   }
                   placeholder="65"
                   className="border-sunset/30 focus:border-sunset focus:ring-sunset/20"
                 />
               </div>
               <div className="space-y-2">
-                <Label
-                  htmlFor="height"
-                  className="text-deep-blue font-medium"
-                >
+                <Label htmlFor="height" className="text-deep-blue font-medium">
                   ส่วนสูง (ซม.)
                 </Label>
                 <Input
                   id="height"
                   type="number"
-                  min="100"
-                  max="250"
-                  value={profile.height || ""}
+                  min={100}
+                  max={250}
+                  value={profile.height ?? ''}
                   onChange={(e) =>
-                    setProfile((prev) => ({
-                      ...prev,
-                      height: parseInt(e.target.value) || 0,
-                    }))
+                    setProfile((prev) => ({ ...prev, height: safeInt(e.target.value) }))
                   }
                   placeholder="170"
                   className="border-lavender/30 focus:border-lavender focus:ring-lavender/20"
@@ -485,76 +443,46 @@ export function Settings() {
                 ระดับการออกกำลังกาย
               </Label>
               <Select
-                value={profile.activityLevel}
-                onValueChange={(
-                  value: UserProfile["activityLevel"],
-                ) =>
-                  setProfile((prev) => ({
-                    ...prev,
-                    activityLevel: value,
-                  }))
+                value={(profile.activityLevel ?? 'moderate') as ActLevel}
+                onValueChange={(value: string) =>
+                  setProfile((prev) => ({ ...prev, activityLevel: value as ActLevel }))
                 }
               >
                 <SelectTrigger className="border-sky/30 focus:border-sky focus:ring-sky/20">
-                  <SelectValue />
+                  <SelectValue placeholder="เลือกระดับการออกกำลังกาย" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="sedentary">
-                    ไม่ค่อยออกกำลังกาย
-                  </SelectItem>
-                  <SelectItem value="light">
-                    ออกกำลังกายเบา ๆ 1-3 วัน/สัปดาห์
-                  </SelectItem>
-                  <SelectItem value="moderate">
-                    ออกกำลังกายปานกลาง 3-5 วัน/สัปดาห์
-                  </SelectItem>
-                  <SelectItem value="active">
-                    ออกกำลังกายหนัก 6-7 วัน/สัปดาห์
-                  </SelectItem>
-                  <SelectItem value="very-active">
-                    ออกกำลังกายหนักมาก วันละ 2 ครั้ง
-                  </SelectItem>
+                  <SelectItem value="sedentary">ไม่ค่อยออกกำลังกาย</SelectItem>
+                  <SelectItem value="light">ออกกำลังกายเบา ๆ 1-3 วัน/สัปดาห์</SelectItem>
+                  <SelectItem value="moderate">ออกกำลังกายปานกลาง 3-5 วัน/สัปดาห์</SelectItem>
+                  <SelectItem value="active">ออกกำลังกายหนัก 6-7 วัน/สัปดาห์</SelectItem>
+                  <SelectItem value="very-active">ออกกำลังกายหนักมาก วันละ 2 ครั้ง</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* เป้าหมาย */}
             <div className="space-y-4">
-              <Label className="text-deep-blue font-medium">
-                เป้าหมาย
-              </Label>
+              <Label className="text-deep-blue font-medium">เป้าหมาย</Label>
               <RadioGroup
-                value={profile.goal}
-                onValueChange={handleGoalChange}
+                value={(profile.goal ?? 'maintain') as Goal}
+                onValueChange={(value: string) => handleGoalChange(value as Goal)}
                 className="grid grid-cols-1 gap-3"
               >
                 <div
                   className="flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-all"
                   style={{
                     borderColor:
-                      profile.goal === "lose"
-                        ? "oklch(0.65 0.2 320)"
-                        : "oklch(0.9 0.01 240)",
+                      profile.goal === 'lose' ? 'oklch(0.65 0.2 320)' : 'oklch(0.9 0.01 240)',
                     background:
-                      profile.goal === "lose"
-                        ? "oklch(0.95 0.05 320 / 0.3)"
-                        : "transparent",
+                      profile.goal === 'lose' ? 'oklch(0.95 0.05 320 / 0.3)' : 'transparent',
                   }}
                 >
-                  <RadioGroupItem
-                    value="lose"
-                    id="lose-settings"
-                    className="border-rose text-rose"
-                  />
-                  <Label
-                    htmlFor="lose-settings"
-                    className="cursor-pointer flex-1"
-                  >
+                  <RadioGroupItem value="lose" id="lose-settings" className="border-rose text-rose" />
+                  <Label htmlFor="lose-settings" className="cursor-pointer flex-1">
                     <div className="flex items-center gap-2">
                       <TrendingDown className="h-4 w-4 text-rose" />
-                      <span className="text-rose font-medium">
-                        ลดน้ำหนัก
-                      </span>
+                      <span className="text-rose font-medium">ลดน้ำหนัก</span>
                     </div>
                   </Label>
                 </div>
@@ -562,13 +490,11 @@ export function Settings() {
                   className="flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-all"
                   style={{
                     borderColor:
-                      profile.goal === "maintain"
-                        ? "oklch(0.55 0.22 240)"
-                        : "oklch(0.9 0.01 240)",
+                      profile.goal === 'maintain'
+                        ? 'oklch(0.55 0.22 240)'
+                        : 'oklch(0.9 0.01 240)',
                     background:
-                      profile.goal === "maintain"
-                        ? "oklch(0.95 0.05 240 / 0.3)"
-                        : "transparent",
+                      profile.goal === 'maintain' ? 'oklch(0.95 0.05 240 / 0.3)' : 'transparent',
                   }}
                 >
                   <RadioGroupItem
@@ -576,15 +502,10 @@ export function Settings() {
                     id="maintain-settings"
                     className="border-deep-blue text-deep-blue"
                   />
-                  <Label
-                    htmlFor="maintain-settings"
-                    className="cursor-pointer flex-1"
-                  >
+                  <Label htmlFor="maintain-settings" className="cursor-pointer flex-1">
                     <div className="flex items-center gap-2">
                       <Minus className="h-4 w-4 text-deep-blue" />
-                      <span className="text-deep-blue font-medium">
-                        รักษาน้ำหนัก
-                      </span>
+                      <span className="text-deep-blue font-medium">รักษาน้ำหนัก</span>
                     </div>
                   </Label>
                 </div>
@@ -592,13 +513,9 @@ export function Settings() {
                   className="flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-all"
                   style={{
                     borderColor:
-                      profile.goal === "gain"
-                        ? "oklch(0.6 0.2 230)"
-                        : "oklch(0.9 0.01 240)",
+                      profile.goal === 'gain' ? 'oklch(0.6 0.2 230)' : 'oklch(0.9 0.01 240)',
                     background:
-                      profile.goal === "gain"
-                        ? "oklch(0.95 0.05 230 / 0.3)"
-                        : "transparent",
+                      profile.goal === 'gain' ? 'oklch(0.95 0.05 230 / 0.3)' : 'transparent',
                   }}
                 >
                   <RadioGroupItem
@@ -606,28 +523,22 @@ export function Settings() {
                     id="gain-settings"
                     className="border-ocean text-ocean"
                   />
-                  <Label
-                    htmlFor="gain-settings"
-                    className="cursor-pointer flex-1"
-                  >
+                  <Label htmlFor="gain-settings" className="cursor-pointer flex-1">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-ocean" />
-                      <span className="text-ocean font-medium">
-                        เพิ่มน้ำหนัก
-                      </span>
+                      <span className="text-ocean font-medium">เพิ่มน้ำหนัก</span>
                     </div>
                   </Label>
                 </div>
               </RadioGroup>
 
               {/* ตั้งเป้าหมายเฉพาะ */}
-              {profile.goal !== "maintain" && (
+              {profile.goal !== 'maintain' && (
                 <div
                   className="mt-4 p-4 rounded-lg space-y-4"
                   style={{
-                    background: "oklch(0.98 0.04 280 / 0.3)",
-                    border:
-                      "1px solid oklch(0.9 0.08 280 / 0.3)",
+                    background: 'oklch(0.98 0.04 280 / 0.3)',
+                    border: '1px solid oklch(0.9 0.08 280 / 0.3)',
                   }}
                 >
                   <div className="flex items-center gap-2 mb-3">
@@ -639,52 +550,40 @@ export function Settings() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label
-                        htmlFor="targetWeight-settings"
-                        className="text-deep-blue font-medium"
-                      >
+                      <Label htmlFor="targetWeight-settings" className="text-deep-blue font-medium">
                         น้ำหนักเป้าหมาย (กก.)
                       </Label>
                       <Input
                         id="targetWeight-settings"
                         type="number"
-                        min="30"
-                        max="200"
-                        step="0.1"
-                        value={profile.targetWeight || ""}
+                        min={30}
+                        max={200}
+                        step={0.1}
+                        value={profile.targetWeight ?? ''}
                         onChange={(e) =>
                           setProfile((prev) => ({
                             ...prev,
-                            targetWeight:
-                              parseFloat(e.target.value) ||
-                              undefined,
+                            targetWeight: safeFloat(e.target.value),
                           }))
                         }
-                        placeholder={
-                          profile.goal === "lose" ? "60" : "70"
-                        }
+                        placeholder={profile.goal === 'lose' ? '60' : '70'}
                         className="border-lavender/30 focus:border-lavender focus:ring-lavender/20"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label
-                        htmlFor="timeframe-settings"
-                        className="text-deep-blue font-medium"
-                      >
+                      <Label htmlFor="timeframe-settings" className="text-deep-blue font-medium">
                         ระยะเวลา (สัปดาห์)
                       </Label>
                       <Input
                         id="timeframe-settings"
                         type="number"
-                        min="1"
-                        max="52"
-                        value={profile.timeframe || ""}
+                        min={1}
+                        max={52}
+                        value={profile.timeframe ?? ''}
                         onChange={(e) =>
                           setProfile((prev) => ({
                             ...prev,
-                            timeframe:
-                              parseInt(e.target.value) ||
-                              undefined,
+                            timeframe: safeInt(e.target.value),
                           }))
                         }
                         placeholder="12"
@@ -693,19 +592,19 @@ export function Settings() {
                     </div>
                   </div>
 
-                  {/* แสดงข้อมูลสรุปเป้าหมาย */}
+                  {/* สรุปเป้าหมาย */}
                   {goalPreview && (
                     <div
                       className="mt-4 p-3 rounded border"
                       style={{
                         background:
                           goalPreview.weeklyChange > 1
-                            ? "oklch(0.98 0.04 320 / 0.3)"
-                            : "oklch(0.98 0.04 230 / 0.3)",
+                            ? 'oklch(0.98 0.04 320 / 0.3)'
+                            : 'oklch(0.98 0.04 230 / 0.3)',
                         borderColor:
                           goalPreview.weeklyChange > 1
-                            ? "oklch(0.65 0.2 320 / 0.3)"
-                            : "oklch(0.6 0.2 230 / 0.3)",
+                            ? 'oklch(0.65 0.2 320 / 0.3)'
+                            : 'oklch(0.6 0.2 230 / 0.3)',
                       }}
                     >
                       <div className="text-sm space-y-1">
@@ -714,15 +613,12 @@ export function Settings() {
                           <span
                             className={
                               goalPreview.weeklyChange > 1
-                                ? "text-rose font-medium"
-                                : "text-ocean font-medium"
+                                ? 'text-rose font-medium'
+                                : 'text-ocean font-medium'
                             }
                           >
-                            {formatWeight(
-                              goalPreview.weightDifference,
-                            )}{" "}
-                            กก. ใน {goalPreview.timeframe}{" "}
-                            สัปดาห์
+                            {formatWeight(goalPreview.weightDifference)} กก. ใน{' '}
+                            {goalPreview.timeframe} สัปดาห์
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -730,26 +626,21 @@ export function Settings() {
                           <span
                             className={
                               goalPreview.weeklyChange > 1
-                                ? "text-rose font-medium"
-                                : "text-ocean font-medium"
+                                ? 'text-rose font-medium'
+                                : 'text-ocean font-medium'
                             }
                           >
-                            {formatWeight(
-                              goalPreview.weeklyChange,
-                            )}{" "}
-                            กก./สัปดาห์
+                            {formatWeight(goalPreview.weeklyChange)} กก./สัปดาห์
                           </span>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {/* คำแนะนำ */}
                   <Alert className="border-info/20 bg-info/10">
                     <Info className="h-4 w-4 text-info" />
                     <AlertDescription className="text-info">
-                      หากไม่กรอก ระบบจะใช้ค่าเริ่มต้น 0.5
-                      กก./สัปดาห์
+                      หากไม่กรอก ระบบจะใช้ค่าเริ่มต้น 0.5 กก./สัปดาห์
                       ซึ่งเป็นอัตราที่ปลอดภัยและยั่งยืน
                     </AlertDescription>
                   </Alert>
@@ -760,54 +651,42 @@ export function Settings() {
               {!goalValidation.isValid && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    {goalValidation.message}
-                  </AlertDescription>
+                  <AlertDescription>{goalValidation.message}</AlertDescription>
                 </Alert>
               )}
             </div>
 
             <Button
               onClick={handleSaveProfile}
-              disabled={!isProfileValid}
+              disabled={!isProfileValid || savingProfile}
               className="w-full text-white"
               style={{
-                background: isProfileValid
-                  ? "linear-gradient(135deg, oklch(0.75 0.18 330), oklch(0.6 0.2 230), oklch(0.7 0.15 280))"
-                  : undefined,
+                background:
+                  isProfileValid && !savingProfile
+                    ? 'linear-gradient(135deg, oklch(0.75 0.18 330), oklch(0.6 0.2 230), oklch(0.7 0.15 280))'
+                    : undefined,
               }}
             >
               <Save className="h-4 w-4 mr-2" />
-              บันทึกโปรไฟล์
+              {savingProfile ? 'กำลังบันทึก...' : 'บันทึกโปรไฟล์'}
             </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* การตั้งค่าอื่น ๆ */}
+      {/* โซนอันตราย */}
       <Card className="border-destructive/20">
         <CardHeader>
-          <CardTitle className="text-destructive">
-            โซนอันตราย
-          </CardTitle>
-          <CardDescription>
-            การกระทำเหล่านี้ไม่สามารถย้อนกลับได้
-          </CardDescription>
+          <CardTitle className="text-destructive">โซนอันตราย</CardTitle>
+          <CardDescription>การกระทำเหล่านี้ไม่สามารถย้อนกลับได้</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
             <div>
-              <h4 className="text-destructive font-medium">
-                ลบบัญชี
-              </h4>
-              <p className="text-sm text-muted-foreground">
-                ลบบัญชีและข้อมูลทั้งหมดอย่างถาวร
-              </p>
+              <h4 className="text-destructive font-medium">ลบบัญชี</h4>
+              <p className="text-sm text-muted-foreground">ลบบัญชีและข้อมูลทั้งหมดอย่างถาวร</p>
             </div>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteAccount}
-            >
+            <Button variant="destructive" onClick={handleDeleteAccount}>
               <Trash2 className="h-4 w-4 mr-2" />
               ลบบัญชี
             </Button>

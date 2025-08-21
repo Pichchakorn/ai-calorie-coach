@@ -7,11 +7,12 @@ import {
   updateProfile as fbUpdateProfile,
   updateEmail as fbUpdateEmail,
   onAuthStateChanged as fbOnAuthStateChanged,
-  User as FbUser,
+  type User as FbUser,
 } from 'firebase/auth';
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -19,10 +20,12 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
   limit as qLimit,
   Timestamp,
-  DocumentData,
+  type DocumentData,
+  type FieldValue,
 } from 'firebase/firestore';
 
 import type {
@@ -31,28 +34,35 @@ import type {
   LoginData,
   UserProfile,
   DailyPlan,
+  CalorieCalculation,
+  MealPlan,
 } from '../types';
 
-// ------------- helpers -------------
+/* ------------------------------ helpers ------------------------------ */
+
 function tsToISO(value: unknown): string | undefined {
-  // เผื่อกรณียังเป็น FieldValue (จาก serverTimestamp ยังไม่ resolve)
+  // ถ้าเป็น Firestore Timestamp แปลงเป็น ISO
   if (value instanceof Timestamp) return value.toDate().toISOString();
+  // ถ้าเป็น FieldValue (เช่น serverTimestamp ที่ยังไม่ resolve) → undefined
   return undefined;
 }
+
 function nowISO() {
   return new Date().toISOString();
 }
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-// map FbUser + Firestore 'users' doc → User
-function fbUserBasic(u: FbUser) {
+function mapUserFromDoc(u: FbUser, data?: DocumentData): User {
   return {
-    uid: u.uid,
-    email: u.email ?? undefined,
-    displayName: u.displayName ?? undefined,
-    photoURL: u.photoURL ?? undefined,
+    id: u.uid,
+    name: data?.name ?? u.displayName ?? 'ผู้ใช้',
+    email: data?.email ?? u.email ?? '',
+    profile: (data?.profile as UserProfile | null) ?? undefined,
+    createdAt: tsToISO(data?.createdAt) ?? nowISO(),
+    updatedAt: tsToISO(data?.updatedAt) ?? nowISO(),
   };
 }
 
@@ -71,23 +81,13 @@ async function ensureUserDocument(u: FbUser): Promise<User> {
     };
     await setDoc(ref, {
       ...base,
-      // ให้ Firestore จัดการเวลา
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
     return base;
   }
 
-  const data = snap.data() as DocumentData;
-  const mapped: User = {
-    id: u.uid,
-    name: data.name ?? u.displayName ?? 'ผู้ใช้',
-    email: data.email ?? u.email ?? '',
-    profile: (data.profile as UserProfile | null) ?? undefined,
-    createdAt: tsToISO(data.createdAt) ?? nowISO(),
-    updatedAt: tsToISO(data.updatedAt) ?? nowISO(),
-  };
-  return mapped;
+  return mapUserFromDoc(u, snap.data());
 }
 
 async function getCurrentUserInternal(): Promise<User | null> {
@@ -96,7 +96,8 @@ async function getCurrentUserInternal(): Promise<User | null> {
   return ensureUserDocument(u);
 }
 
-// ------------- Auth Service -------------
+/* ------------------------------ Auth Service ------------------------------ */
+
 export const authService = {
   async login(data: LoginData): Promise<User> {
     try {
@@ -104,7 +105,7 @@ export const authService = {
       const cred = await signInWithEmailAndPassword(auth, email, data.password);
       return ensureUserDocument(cred.user);
     } catch (err: any) {
-      // สำคัญ: ถ้าเห็น auth/invalid-credential = อีเมล/รหัสไม่ถูก หรือ user ยังไม่มี
+      // ส่วนมากจะเจอ auth/invalid-credential, auth/user-not-found, auth/wrong-password
       console.error('🔴 Firebase login failed:', err?.code, err);
       throw err;
     }
@@ -112,15 +113,12 @@ export const authService = {
 
   async register(data: RegisterData): Promise<User> {
     const email = normalizeEmail(data.email);
-    // สร้างผู้ใช้
     const cred = await createUserWithEmailAndPassword(auth, email, data.password);
 
-    // set displayName
     if (data.name) {
       await fbUpdateProfile(cred.user, { displayName: data.name });
     }
 
-    // สร้างเอกสาร users/{uid}
     const ref = doc(db, 'users', cred.user.uid);
     await setDoc(ref, {
       id: cred.user.uid,
@@ -132,7 +130,6 @@ export const authService = {
       updatedAt: serverTimestamp(),
     });
 
-    // คืนค่าเป็นรูปแบบ User
     return ensureUserDocument(cred.user);
   },
 
@@ -145,15 +142,17 @@ export const authService = {
   },
 
   async updateUser(
-    updates: Partial<Pick<User, 'name' | 'profile' | 'email'>>,
+    updates: Partial<Pick<User, 'name' | 'profile' | 'email'>>
   ): Promise<void> {
     const u = auth.currentUser;
     if (!u) throw new Error('No user logged in');
 
-    // Auth profile
+    // อัปเดต Auth profile/displayName
     if (typeof updates.name !== 'undefined' && updates.name !== u.displayName) {
       await fbUpdateProfile(u, { displayName: updates.name ?? '' });
     }
+
+    // อัปเดต Auth email (อาจเจอ auth/requires-recent-login)
     if (
       typeof updates.email !== 'undefined' &&
       updates.email &&
@@ -162,13 +161,13 @@ export const authService = {
       try {
         await fbUpdateEmail(u, normalizeEmail(updates.email));
       } catch (e: any) {
-        // บ่อยสุด: auth/requires-recent-login
         console.error('updateEmail failed:', e?.code, e);
+        // แนะนำให้ UI จัดการ re-auth (เช่น popup ให้ login ใหม่) แล้วลองอีกครั้ง
         throw e;
       }
     }
 
-    // Firestore doc
+    // อัปเดต Firestore users/{uid}
     const ref = doc(db, 'users', u.uid);
     const payload: Record<string, unknown> = {
       updatedAt: serverTimestamp(),
@@ -183,37 +182,40 @@ export const authService = {
   },
 
   // Listener สำหรับ AuthContext
-  onAuthStateChanged(cb: (u: unknown) => void) {
+  onAuthStateChanged(cb: (u: FbUser | null) => void) {
+    // ส่ง FbUser | null กลับไปให้ context เป็นคน map เองถ้าต้องการ
     return fbOnAuthStateChanged(auth, cb);
   },
 };
 
-// ------------- Daily Plans Service -------------
+/* --------------------------- Daily Plans Service --------------------------- */
 /**
  * Firestore:
  *  - daily_plans
- *    - { user_id, date(YYYY-MM-DD), profile, calorieCalc, mealPlan, generatedAt, createdAt, updatedAt }
+ *     - { user_id, date(YYYY-MM-DD string), profile, calorieCalc, mealPlan, generatedAt, createdAt, updatedAt }
  *
- * NOTE: ถ้า query ตาม user_id + orderBy date ต้องสร้าง composite index ใน Firestore Console
+ * ✅ แนะนำเก็บ date เป็น string รูปแบบ 'YYYY-MM-DD' เพื่อ query/order ได้เสถียร
+ * ⚠️ ถ้าใช้ where('user_id','==',uid) + orderBy('date') อาจต้องสร้าง composite index ใน Firestore Console
  */
+
 export const dailyPlansService = {
   async getUserDailyPlans(userId: string, limitN = 5): Promise<DailyPlan[]> {
-    const col = collection(db, 'daily_plans');
-    const q = query(
-      col,
+    const colRef = collection(db, 'daily_plans');
+    const qRef = query(
+      colRef,
       where('user_id', '==', userId),
       orderBy('date', 'desc'),
-      qLimit(limitN),
+      qLimit(limitN)
     );
-    const snap = await getDocs(q);
+    const snap = await getDocs(qRef);
 
     const plans: DailyPlan[] = [];
     snap.forEach((d) => {
       const data = d.data() as any;
       plans.push({
         profile: data.profile as UserProfile,
-        calorieCalc: data.calorieCalc,
-        mealPlan: data.mealPlan,
+        calorieCalc: data.calorieCalc as CalorieCalculation,
+        mealPlan: data.mealPlan as MealPlan,
         generatedAt:
           tsToISO(data.generatedAt) ??
           tsToISO(data.createdAt) ??
@@ -223,6 +225,22 @@ export const dailyPlansService = {
     return plans;
   },
 
+  async getDailyPlanByDate(userId: string, date: string): Promise<DailyPlan | null> {
+    const colRef = collection(db, 'daily_plans');
+    const qRef = query(colRef, where('user_id', '==', userId), where('date', '==', date));
+    const snap = await getDocs(qRef);
+    if (snap.empty) return null;
+
+    const d = snap.docs[0];
+    const data = d.data() as any;
+    return {
+      profile: data.profile as UserProfile,
+      calorieCalc: data.calorieCalc as CalorieCalculation,
+      mealPlan: data.mealPlan as MealPlan,
+      generatedAt: tsToISO(data.generatedAt) ?? tsToISO(data.createdAt) ?? nowISO(),
+    };
+  },
+
   async createDailyPlan(params: {
     userId: string;
     date: string; // 'YYYY-MM-DD'
@@ -230,8 +248,8 @@ export const dailyPlansService = {
     gptPrompt?: string;
     gptResponseId?: string;
   }) {
-    const col = collection(db, 'daily_plans');
-    await addDoc(col, {
+    const colRef = collection(db, 'daily_plans');
+    await addDoc(colRef, {
       user_id: params.userId,
       date: params.date,
       profile: params.plan.profile,
@@ -244,9 +262,33 @@ export const dailyPlansService = {
       updatedAt: serverTimestamp(),
     });
   },
+
+  async updateDailyPlan(params: {
+    docId: string; // ไอดีของเอกสารใน daily_plans
+    patch: Partial<{
+      profile: UserProfile | null;
+      calorieCalc: CalorieCalculation | null;
+      mealPlan: MealPlan | null;
+      date: string;
+      gpt_prompt: string | null;
+      gpt_response_id: string | null;
+    }>;
+  }) {
+    const ref = doc(db, 'daily_plans', params.docId);
+    await updateDoc(ref, {
+      ...params.patch,
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  async deleteDailyPlan(docId: string) {
+    const ref = doc(db, 'daily_plans', docId);
+    await deleteDoc(ref);
+  },
 };
 
-// ------------- meta (ใช้โดย AuthContext) -------------
+/* ------------------------------- meta utils ------------------------------- */
+
 export const getServicesStatus = () => ({
   isDevelopment: import.meta.env.MODE !== 'production',
 });

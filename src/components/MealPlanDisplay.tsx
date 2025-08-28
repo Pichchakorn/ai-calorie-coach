@@ -13,6 +13,18 @@ interface MealPlanDisplayProps {
   onGenerateNew: () => void;
 }
 
+type Tint =
+  | "ocean"
+  | "sunset"
+  | "lavender"
+  | "sky"
+  | "mixedOcean"
+  | "mixedSunset"
+  | "mixedLavender"
+  | "mixedSky";
+
+type Color = "ocean" | "sunset" | "lavender" | "sky";
+
 function safeArray<T>(a?: T[]): T[] {
   return Array.isArray(a) ? a : [];
 }
@@ -29,37 +41,29 @@ function Section({
   badgeColor,
 }: {
   title: string;
-  tint:
-    | "ocean"
-    | "sunset"
-    | "lavender"
-    | "sky"
-    | "mixedOcean"
-    | "mixedSunset"
-    | "mixedLavender"
-    | "mixedSky";
+  tint: Tint;
   foods: FoodItem[];
   icon: React.ReactNode;
-  badgeColor:
-    | "ocean"
-    | "sunset"
-    | "lavender"
-    | "sky";
+  badgeColor: Color;
 }) {
-  const kcal = useMemo(() => sumBy(foods, (f) => f.calories || 0), [foods]);
+  const kcal = useMemo(() => sumBy(foods, (f) => Number(f.calories) || 0), [foods]);
 
-  const cardShadowByTint: Record<string, string> = {
-    mixedOcean: "0 4px 14px 0 oklch(0.6 0.2 230 / 0.2), 0 0 0 1px oklch(0.6 0.2 230 / 0.1)",
-    mixedSunset: "0 4px 14px 0 oklch(0.75 0.18 330 / 0.2), 0 0 0 1px oklch(0.75 0.18 330 / 0.1)",
-    mixedLavender: "0 4px 14px 0 oklch(0.7 0.15 280 / 0.2), 0 0 0 1px oklch(0.7 0.15 280 / 0.1)",
-    mixedSky: "0 4px 14px 0 oklch(0.75 0.12 210 / 0.2), 0 0 0 1px oklch(0.75 0.12 210 / 0.1)",
+  const cardShadowByTint: Record<Tint, string> = {
+    mixedOcean:
+      "0 4px 14px 0 oklch(0.6 0.2 230 / 0.2), 0 0 0 1px oklch(0.6 0.2 230 / 0.1)",
+    mixedSunset:
+      "0 4px 14px 0 oklch(0.75 0.18 330 / 0.2), 0 0 0 1px oklch(0.75 0.18 330 / 0.1)",
+    mixedLavender:
+      "0 4px 14px 0 oklch(0.7 0.15 280 / 0.2), 0 0 0 1px oklch(0.7 0.15 280 / 0.1)",
+    mixedSky:
+      "0 4px 14px 0 oklch(0.75 0.12 210 / 0.2), 0 0 0 1px oklch(0.75 0.12 210 / 0.1)",
     ocean: "",
     sunset: "",
     lavender: "",
     sky: "",
   };
 
-  const badgeClassByTint: Record<typeof badgeColor, string> = {
+  const badgeClassByColor: Record<Color, string> = {
     ocean: "text-ocean border-ocean bg-ocean/10",
     sunset: "text-sunset border-sunset bg-sunset/10",
     lavender: "text-lavender border-lavender bg-lavender/10",
@@ -67,7 +71,7 @@ function Section({
   };
 
   return (
-    <Card style={{ boxShadow: cardShadowByTint[tint] ?? "" }}>
+    <Card style={{ boxShadow: cardShadowByTint[tint] }}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <div
@@ -98,7 +102,7 @@ function Section({
           >
             {title}
           </span>
-          <Badge variant="outline" className={badgeClassByTint[badgeColor]}>
+          <Badge variant="outline" className={badgeClassByColor[badgeColor]}>
             {formatCalories(kcal)} kcal
           </Badge>
         </CardTitle>
@@ -143,7 +147,6 @@ export function MealPlanDisplay({
   targetCalories,
   onGenerateNew,
 }: MealPlanDisplayProps) {
-  // กัน null / undefined จาก backend
   const breakfast = useMemo(() => safeArray(mealPlan?.breakfast), [mealPlan]);
   const lunch = useMemo(() => safeArray(mealPlan?.lunch), [mealPlan]);
   const dinner = useMemo(() => safeArray(mealPlan?.dinner), [mealPlan]);
@@ -152,16 +155,16 @@ export function MealPlanDisplay({
   const totalCalories = useMemo(
     () =>
       Number(mealPlan?.totalCalories) ||
-      sumBy([...breakfast, ...lunch, ...dinner, ...snacks], (f) => f.calories || 0),
+      sumBy([...breakfast, ...lunch, ...dinner, ...snacks], (f) => Number(f.calories) || 0),
     [mealPlan?.totalCalories, breakfast, lunch, dinner, snacks]
   );
 
   const totals = useMemo(() => {
     const all = [...breakfast, ...lunch, ...dinner, ...snacks];
     return {
-      protein: sumBy(all, (f) => f.protein || 0),
-      carbs: sumBy(all, (f) => f.carbs || 0),
-      fat: sumBy(all, (f) => f.fat || 0),
+      protein: sumBy(all, (f) => Number(f.protein) || 0),
+      carbs: sumBy(all, (f) => Number(f.carbs) || 0),
+      fat: sumBy(all, (f) => Number(f.fat) || 0),
     };
   }, [breakfast, lunch, dinner, snacks]);
 

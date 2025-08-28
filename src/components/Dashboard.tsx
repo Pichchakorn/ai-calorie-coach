@@ -1,3 +1,4 @@
+// src/components/Dashboard.tsx
 import React, { useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -37,9 +38,16 @@ interface DashboardProps {
   onCreatePlan: () => void;
   onNavigateToSettings: () => void;
   recentPlans?: DailyPlan[];
+  /** ใช้สร้างแผนอย่างรวดเร็วจากโปรไฟล์ผู้ใช้ (ถ้ามี) */
+  onQuickPlan?: () => void;
 }
 
-export function Dashboard({ onCreatePlan, onNavigateToSettings, recentPlans = [] }: DashboardProps) {
+export function Dashboard({
+  onCreatePlan,
+  onNavigateToSettings,
+  recentPlans = [],
+  onQuickPlan,
+}: DashboardProps) {
   const { user } = useAuth();
   const [quickPlanLoading, setQuickPlanLoading] = useState(false);
 
@@ -53,9 +61,10 @@ export function Dashboard({ onCreatePlan, onNavigateToSettings, recentPlans = []
     if (!user?.profile) return;
     setQuickPlanLoading(true);
     try {
-      // เดิมจำลองดีเลย์ไว้ เผื่อค่อยเปลี่ยนเป็น call service จริง
-      await new Promise((r) => setTimeout(r, 800));
-      onCreatePlan();
+      // ถ้า parent ส่ง onQuickPlan มาให้ ให้ใช้ (จะคำนวณทันทีจากโปรไฟล์)
+      // ถ้าไม่มีก็ fallback ไปสร้างแผนแบบฟอร์มปกติ
+      await new Promise((r) => setTimeout(r, 250));
+      (onQuickPlan ?? onCreatePlan)();
     } finally {
       setQuickPlanLoading(false);
     }
@@ -76,7 +85,9 @@ export function Dashboard({ onCreatePlan, onNavigateToSettings, recentPlans = []
     const p = user?.profile;
     if (!p?.targetWeight || !p?.timeframe) return null;
     const totalChange = Math.abs(p.targetWeight - p.weight);
-    const weeksPassed = 2; // TODO: คำนวณจริงจาก start date ถ้ามี
+    const weeksPassed = p.startDate
+      ? Math.max(1, Math.ceil((Date.now() - new Date(p.startDate).getTime()) / (1000 * 60 * 60 * 24 * 7)))
+      : 1;
     const progressPercentage = Math.min((weeksPassed / p.timeframe) * 100, 100);
     return { totalChange, weeksPassed, timeframe: p.timeframe, progressPercentage };
   }, [user?.profile]);
@@ -84,9 +95,7 @@ export function Dashboard({ onCreatePlan, onNavigateToSettings, recentPlans = []
   const healthStats = useMemo(() => {
     const p = user?.profile;
     if (!p) return null;
-    // ต้องมีอายุ/น้ำหนัก/ส่วนสูงครบจึงคำนวณได้
     if (!(p.age && p.weight && p.height && p.activityLevel)) return null;
-
     const bmr = calcBMR(p);
     const tdee = calculateTDEE(bmr, p.activityLevel);
     return calculateTargetCalories(p, tdee);
@@ -121,7 +130,9 @@ export function Dashboard({ onCreatePlan, onNavigateToSettings, recentPlans = []
                   <Utensils className="h-5 w-5" />
                   แผนอาหารใหม่
                 </h4>
-                <p className="text-sm opacity-90">สร้างแผนอาหารวันนี้</p>
+                <p className="text-sm opacity-90">
+                  {user?.profile ? 'สร้างแผนจากโปรไฟล์ของคุณ' : 'กรุณาตั้งค่าโปรไฟล์ก่อน'}
+                </p>
               </div>
               <Button
                 onClick={handleQuickPlan}

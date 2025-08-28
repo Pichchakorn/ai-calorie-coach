@@ -8,6 +8,7 @@ export interface UserProfile {
   goal: 'lose' | 'maintain' | 'gain';
   targetWeight?: number;
   timeframe?: number; // weeks
+  startDate?: string; // วันที่เริ่มต้นเป้าหมาย (ISO string), optional
 }
 
 export interface User {

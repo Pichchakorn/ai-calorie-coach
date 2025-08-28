@@ -4,13 +4,19 @@
     "module": "ESNext",
     "moduleResolution": "Node",
     "jsx": "react-jsx",
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
+
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],   // ✅ เพิ่ม ให้ได้ type DOM ครบ
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["vite/client"]
+
+    "baseUrl": ".",                              // ✅ (ออปชัน) ให้ตั้ง alias path
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
+    "types": ["vite/client"]                     // (คงเดิม)
   },
   "include": ["src"]
 }

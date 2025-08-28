@@ -1,3 +1,4 @@
+// src/components/Navigation.tsx
 import React, { useCallback, useMemo, useState } from 'react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -19,7 +20,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { Calculator, Settings, LogOut, User, Menu } from 'lucide-react';
 
-type PageKey = 'dashboard' | 'settings';
+export type PageKey = 'dashboard' | 'settings';
 
 interface NavigationProps {
   onNavigate: (page: PageKey) => void;
@@ -32,9 +33,10 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const initials = useMemo(() => {
-    if (!user?.name) return '';
-    return user.name
-      .split(' ')
+    const name = user?.name?.trim();
+    if (!name) return '';
+    return name
+      .split(/\s+/)
       .filter(Boolean)
       .map((w) => w[0]?.toUpperCase() ?? '')
       .join('')
@@ -56,7 +58,7 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
       onNavigate(page);
       setMobileMenuOpen(false);
     },
-    [onNavigate],
+    [onNavigate]
   );
 
   const isDashboard = currentPage === 'dashboard';
@@ -74,7 +76,7 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
     >
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          {/* Logo */}
+          {/* Logo / Home */}
           <div className="flex items-center gap-4">
             <Button
               type="button"
@@ -99,22 +101,17 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
             </Button>
           </div>
 
-          {/* Desktop Navigation */}
+          {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-6" aria-label="หลัก">
             <Button
               type="button"
               variant={isDashboard ? 'default' : 'ghost'}
               onClick={() => handleNavigation('dashboard')}
               aria-current={isDashboard ? 'page' : undefined}
-              className={
-                isDashboard ? 'text-white' : 'hover:bg-ocean/10 text-ocean'
-              }
+              className={isDashboard ? 'text-white' : 'hover:bg-ocean/10 text-ocean'}
               style={
                 isDashboard
-                  ? {
-                      background:
-                        'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))',
-                    }
+                  ? { background: 'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))' }
                   : undefined
               }
             >
@@ -125,15 +122,10 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
               variant={isSettings ? 'default' : 'ghost'}
               onClick={() => handleNavigation('settings')}
               aria-current={isSettings ? 'page' : undefined}
-              className={
-                isSettings ? 'text-white' : 'hover:bg-sunset/10 text-sunset'
-              }
+              className={isSettings ? 'text-white' : 'hover:bg-sunset/10 text-sunset'}
               style={
                 isSettings
-                  ? {
-                      background:
-                        'linear-gradient(135deg, oklch(0.75 0.18 330), oklch(0.7 0.15 320))',
-                    }
+                  ? { background: 'linear-gradient(135deg, oklch(0.75 0.18 330), oklch(0.7 0.15 320))' }
                   : undefined
               }
             >
@@ -141,7 +133,7 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
             </Button>
           </nav>
 
-          {/* Desktop User Menu & Logout */}
+          {/* Desktop User Menu */}
           <div className="hidden md:flex items-center gap-4">
             {user && (
               <div className="text-right">
@@ -156,9 +148,7 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
                   type="button"
                   variant="ghost"
                   className="relative h-10 w-10 rounded-full border-ocean/20 hover:bg-ocean/10"
-                  style={{
-                    border: '2px solid oklch(0.6 0.2 230 / 0.2)',
-                  }}
+                  style={{ border: '2px solid oklch(0.6 0.2 230 / 0.2)' }}
                   aria-label="เมนูผู้ใช้"
                 >
                   <Avatar className="h-8 w-8">
@@ -169,11 +159,7 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
                           'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.75 0.18 330))',
                       }}
                     >
-                      {user ? (
-                        initials || <User className="h-4 w-4" />
-                      ) : (
-                        <User className="h-4 w-4" />
-                      )}
+                      {initials || <User className="h-4 w-4" />}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -181,12 +167,8 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm text-ocean font-medium">
-                      {user?.name ?? 'ผู้ใช้'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {user?.email ?? ''}
-                    </p>
+                    <p className="text-sm text-ocean font-medium">{user?.name ?? 'ผู้ใช้'}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email ?? ''}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -216,7 +198,6 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Standalone Logout Button */}
             <Button
               type="button"
               variant="outline"
@@ -233,19 +214,17 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
           {/* Mobile Menu */}
           <div className="md:hidden flex items-center gap-2">
             {user && (
-              <div className="flex items-center gap-2" aria-hidden="true">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback
-                    className="text-white text-sm font-medium"
-                    style={{
-                      background:
-                        'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.75 0.18 330))',
-                    }}
-                  >
-                    {initials || <User className="h-4 w-4" />}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
+              <Avatar className="h-8 w-8" aria-hidden="true">
+                <AvatarFallback
+                  className="text-white text-sm font-medium"
+                  style={{
+                    background:
+                      'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.75 0.18 330))',
+                  }}
+                >
+                  {initials || <User className="h-4 w-4" />}
+                </AvatarFallback>
+              </Avatar>
             )}
 
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -266,7 +245,6 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
                 </SheetHeader>
 
                 <div className="mt-6 space-y-6">
-                  {/* User Info */}
                   {user && (
                     <div
                       className="flex items-center gap-3 p-4 rounded-lg"
@@ -288,17 +266,12 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="text-sm text-ocean font-medium">
-                          {user.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {user.email}
-                        </p>
+                        <p className="text-sm text-ocean font-medium">{user.name}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
                       </div>
                     </div>
                   )}
 
-                  {/* Navigation */}
                   <nav className="space-y-3" aria-label="เมนูมือถือ">
                     <Button
                       type="button"
@@ -310,10 +283,7 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
                       }`}
                       style={
                         isDashboard
-                          ? {
-                              background:
-                                'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))',
-                            }
+                          ? { background: 'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))' }
                           : undefined
                       }
                     >
@@ -330,10 +300,7 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
                       }`}
                       style={
                         isSettings
-                          ? {
-                              background:
-                                'linear-gradient(135deg, oklch(0.75 0.18 330), oklch(0.7 0.15 320))',
-                            }
+                          ? { background: 'linear-gradient(135deg, oklch(0.75 0.18 330), oklch(0.7 0.15 320))' }
                           : undefined
                       }
                     >
@@ -342,7 +309,6 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
                     </Button>
                   </nav>
 
-                  {/* Logout Button */}
                   <div className="pt-6 border-t border-muted">
                     <Button
                       type="button"
@@ -350,8 +316,7 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
                       disabled={isLoggingOut}
                       className="w-full justify-start text-white"
                       style={{
-                        background:
-                          'linear-gradient(135deg, oklch(0.65 0.2 320), oklch(0.7 0.15 320))',
+                        background: 'linear-gradient(135deg, oklch(0.65 0.2 320), oklch(0.7 0.15 320))',
                       }}
                     >
                       <LogOut className="mr-2 h-4 w-4" />
@@ -367,3 +332,6 @@ export function Navigation({ onNavigate, currentPage }: NavigationProps) {
     </header>
   );
 }
+
+// ให้ import ได้แบบ default ด้วย
+export default Navigation;

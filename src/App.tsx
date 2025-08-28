@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginForm } from './components/auth/LoginForm';
@@ -13,10 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Skeleton } from './components/ui/skeleton';
 import { Toaster } from './components/ui/sonner';
-import { UserProfile, CalorieCalculation, MealPlan, DailyPlan } from './types';
-import { calculateTargetCalories, calculateTDEE, generateMealPlan } from './utils/calculations';
+import { UserProfile, MealPlan, DailyPlan } from './types';
+import { calculateTargetCalories, calculateTDEE, calculateBMR } from './utils/calculations';
+import { generateMealPlanAI } from './services/ai';
 import { ArrowLeft, BarChart3, Calendar, Utensils, Plus } from 'lucide-react';
-import { toast } from "sonner";
+import { toast } from 'sonner';
 
 function LoadingScreen() {
   return (
@@ -35,49 +37,85 @@ function AuthenticatedApp() {
   const [currentPage, setCurrentPage] = useState<'dashboard' | 'settings'>('dashboard');
   const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'results'>('dashboard');
   const [dailyPlan, setDailyPlan] = useState<DailyPlan | null>(null);
-  
-  // Mock recent plans data - in real app this would come from API/database
+  const [loading, setLoading] = useState(false);
+
+  // ในอนาคตค่อยดึงจากฐานข้อมูล
   const [recentPlans] = useState<DailyPlan[]>([]);
 
-  const handleProfileSubmit = (profile: UserProfile) => {
+  const buildTargetCalories = (profile: UserProfile) => {
+    const bmr = calculateBMR(profile);
+    const tdee = calculateTDEE(bmr, profile.activityLevel);
+    return calculateTargetCalories(profile, tdee);
+  };
+
+  const handleProfileSubmit = async (profile: UserProfile) => {
     try {
-      // คำนวณแคลอรี่
-      const tdee = calculateTDEE(0, profile.activityLevel);
-      const calorieCalc = calculateTargetCalories(profile, tdee);
-      
-      // สร้างแผนอาหาร
-      const mealPlan = generateMealPlan(calorieCalc.targetCalories, profile.goal);
-      
-      // สร้างแผนรายวัน
+      setLoading(true);
+
+      // คำนวณเป้าหมายรายวัน
+      const calorieCalc = buildTargetCalories(profile);
+
+      // เรียก AI พร้อม targetCalories (จำเป็น)
+      const mealPlan: MealPlan = await generateMealPlanAI({
+        profile: {
+          gender: profile.gender,
+          age: profile.age,
+          height: profile.height,
+          weight: profile.weight,
+          goal: profile.goal,
+          activityLevel: profile.activityLevel,
+        },
+        targetCalories: Math.round(calorieCalc.targetCalories),
+        cuisine: 'thai',
+      });
+
       const newDailyPlan: DailyPlan = {
         profile,
         calorieCalc,
         mealPlan,
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
       };
-      
+
       setDailyPlan(newDailyPlan);
       setCurrentView('results');
-      
       toast.success('คำนวณแผนอาหารสำเร็จ!');
-    } catch (error) {
-      toast.error('เกิดข้อผิดพลาดในการคำนวณ กรุณาลองใหม่');
-      console.error('Error calculating plan:', error);
+    } catch (error: any) {
+      console.error('Error calculating/generating plan:', error);
+      toast.error(error?.message || 'เกิดข้อผิดพลาดในการคำนวณ/สร้างเมนู');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleGenerateNewMeal = () => {
+  const handleGenerateNewMeal = async () => {
     if (!dailyPlan) return;
-    
     try {
-      const newMealPlan = generateMealPlan(dailyPlan.calorieCalc.targetCalories, dailyPlan.profile.goal);
-      setDailyPlan(prev => prev ? { ...prev, mealPlan: newMealPlan } : null);
+      setLoading(true);
+
+      const mealPlan: MealPlan = await generateMealPlanAI({
+        profile: {
+          gender: dailyPlan.profile.gender,
+          age: dailyPlan.profile.age,
+          height: dailyPlan.profile.height,
+          weight: dailyPlan.profile.weight,
+          goal: dailyPlan.profile.goal,
+          activityLevel: dailyPlan.profile.activityLevel,
+        },
+        // ✅ ส่งเป้าหมายไปด้วยทุกครั้ง
+        targetCalories: Math.round(dailyPlan.calorieCalc.targetCalories),
+        cuisine: 'thai',
+      });
+
+      setDailyPlan((prev) => (prev ? { ...prev, mealPlan } : prev));
       toast.success('สุ่มเมนูใหม่สำเร็จ!');
-    } catch (error) {
-      toast.error('เกิดข้อผิดพลาดในการสุ่มเมนู');
+    } catch (error: any) {
       console.error('Error generating new meal:', error);
+      toast.error(error?.message || 'เกิดข้อผิดพลาดในการสุ่มเมนู');
+    } finally {
+      setLoading(false);
     }
   };
+
 
   const handleCreatePlan = () => {
     setCurrentView('form');
@@ -91,13 +129,13 @@ function AuthenticatedApp() {
 
   const handleQuickPlanFromProfile = () => {
     if (user?.profile) {
-      handleProfileSubmit(user.profile);
+      void handleProfileSubmit(user.profile);
     } else {
       handleCreatePlan();
     }
   };
 
-  // แสดงหน้าตั้งค่า
+  // หน้า Settings
   if (currentPage === 'settings') {
     return (
       <div className="min-h-screen bg-background">
@@ -107,60 +145,53 @@ function AuthenticatedApp() {
     );
   }
 
-  // แสดงหน้า Dashboard หลัก
+  // หน้า Dashboard
   if (currentView === 'dashboard') {
     return (
       <div className="min-h-screen bg-background">
         <Navigation onNavigate={setCurrentPage} currentPage={currentPage} />
-        <Dashboard 
+        <Dashboard
           onCreatePlan={handleCreatePlan}
           onNavigateToSettings={() => setCurrentPage('settings')}
           recentPlans={recentPlans}
+          // ถ้า Dashboard ของคุณยังไม่มี prop นี้ ให้ลบแถวนี้ได้
+          onQuickPlan={handleQuickPlanFromProfile as any}
         />
       </div>
     );
   }
 
-  // แสดงฟอร์มกรอกข้อมูล
+  // หน้าแบบฟอร์ม
   if (currentView === 'form') {
     return (
       <div className="min-h-screen bg-background">
         <Navigation onNavigate={setCurrentPage} currentPage={currentPage} />
         <div className="max-w-4xl mx-auto p-6">
-          {/* Back to Dashboard Button */}
+          {/* Back to Dashboard */}
           <div className="mb-6">
-            <Button 
-              variant="ghost" 
-              onClick={handleBackToDashboard}
-              className="flex items-center gap-2"
-            >
+            <Button variant="ghost" onClick={handleBackToDashboard} className="flex items-center gap-2">
               <ArrowLeft className="h-4 w-4" />
               กลับไปแดชบอร์ด
             </Button>
           </div>
 
-          {/* Quick action for existing users */}
+          {/* Quick action */}
           {user?.profile && (
             <div className="mb-8">
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-center space-y-4">
                     <h2 className="mb-2">สร้างแผนอาหารใหม่</h2>
-                    <p className="text-muted-foreground">
-                      ใช้โปรไฟล์ปัจจุบันหรือปรับแต่งข้อมูลใหม่
-                    </p>
-
+                    <p className="text-muted-foreground">ใช้โปรไฟล์ปัจจุบันหรือปรับแต่งข้อมูลใหม่</p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                      <Button 
-                        onClick={handleQuickPlanFromProfile} 
-                        className="flex-1 sm:flex-none"
-                      >
-                        ใช้โปรไฟล์ปัจจุบัน
+                      <Button onClick={handleQuickPlanFromProfile} className="flex-1 sm:flex-none" disabled={loading}>
+                        {loading ? 'กำลังสร้าง…' : 'ใช้โปรไฟล์ปัจจุบัน'}
                       </Button>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         onClick={() => setCurrentPage('settings')}
                         className="flex-1 sm:flex-none"
+                        disabled={loading}
                       >
                         แก้ไขโปรไฟล์ก่อน
                       </Button>
@@ -170,7 +201,7 @@ function AuthenticatedApp() {
               </Card>
             </div>
           )}
-          
+
           <UserProfileForm onSubmit={handleProfileSubmit} />
         </div>
       </div>
@@ -187,39 +218,29 @@ function AuthenticatedApp() {
     );
   }
 
-  // แสดงผลลัพธ์แผนอาหาร
+  // หน้าแสดงผลลัพธ์
   return (
     <div className="min-h-screen bg-background">
       <Navigation onNavigate={setCurrentPage} currentPage={currentPage} />
-      
+
       {/* Header */}
       <div className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                onClick={handleBackToDashboard} 
-                className="flex items-center gap-2"
-              >
+              <Button variant="ghost" onClick={handleBackToDashboard} className="flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 <span className="hidden sm:inline">แดชบอร์ด</span>
               </Button>
               <div>
-                <h1 className="flex items-center gap-2">
-                  แผนอาหารส่วนตัว
-                </h1>
+                <h1 className="flex items-center gap-2">แผนอาหารส่วนตัว</h1>
                 <p className="text-sm text-muted-foreground">
                   {user?.name} • {dailyPlan.mealPlan.date}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                onClick={handleCreatePlan} 
-                variant="outline" 
-                className="flex items-center gap-2"
-              >
+              <Button onClick={handleCreatePlan} variant="outline" className="flex items-center gap-2" disabled={loading}>
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">สร้างแผนใหม่</span>
               </Button>
@@ -248,16 +269,11 @@ function AuthenticatedApp() {
 
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <CalorieResult 
-                profile={dailyPlan.profile} 
-                calculation={dailyPlan.calorieCalc} 
-              />
+              <CalorieResult profile={dailyPlan.profile} calculation={dailyPlan.calorieCalc} />
               <Card>
                 <CardHeader>
                   <CardTitle>สรุปแผนอาหารวันนี้</CardTitle>
-                  <CardDescription>
-                    เมนูที่ AI แนะนำเฉพาะสำหรับคุณ
-                  </CardDescription>
+                  <CardDescription>เมนูที่ AI แนะนำเฉพาะสำหรับคุณ</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -267,15 +283,15 @@ function AuthenticatedApp() {
                     </div>
                     <div className="text-center p-4 bg-muted rounded-lg">
                       <div className="text-2xl">
-                        {dailyPlan.mealPlan.breakfast.length + 
-                         dailyPlan.mealPlan.lunch.length + 
-                         dailyPlan.mealPlan.dinner.length + 
-                         dailyPlan.mealPlan.snacks.length}
+                        {dailyPlan.mealPlan.breakfast.length +
+                          dailyPlan.mealPlan.lunch.length +
+                          dailyPlan.mealPlan.dinner.length +
+                          dailyPlan.mealPlan.snacks.length}
                       </div>
                       <div className="text-sm text-muted-foreground">เมนูทั้งหมด</div>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span>อาหารเช้า</span>
@@ -295,12 +311,8 @@ function AuthenticatedApp() {
                     </div>
                   </div>
 
-                  <Button 
-                    onClick={handleGenerateNewMeal} 
-                    className="w-full"
-                    variant="outline"
-                  >
-                    สุ่มเมนูใหม่
+                  <Button onClick={handleGenerateNewMeal} className="w-full" variant="outline" disabled={loading}>
+                    {loading ? 'กำลังสุ่ม…' : 'สุ่มเมนูใหม่'}
                   </Button>
                 </CardContent>
               </Card>
@@ -308,10 +320,7 @@ function AuthenticatedApp() {
           </TabsContent>
 
           <TabsContent value="calories">
-            <CalorieResult 
-              profile={dailyPlan.profile} 
-              calculation={dailyPlan.calorieCalc} 
-            />
+            <CalorieResult profile={dailyPlan.profile} calculation={dailyPlan.calorieCalc} />
           </TabsContent>
 
           <TabsContent value="meals">
@@ -329,12 +338,11 @@ function AuthenticatedApp() {
 
 function UnauthenticatedApp() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-
-  if (authMode === 'login') {
-    return <LoginForm onSwitchToRegister={() => setAuthMode('register')} />;
-  }
-
-  return <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />;
+  return authMode === 'login' ? (
+    <LoginForm onSwitchToRegister={() => setAuthMode('register')} />
+  ) : (
+    <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
+  );
 }
 
 export default function App() {
@@ -348,10 +356,6 @@ export default function App() {
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
+  if (isLoading) return <LoadingScreen />;
   return isAuthenticated ? <AuthenticatedApp /> : <UnauthenticatedApp />;
 }

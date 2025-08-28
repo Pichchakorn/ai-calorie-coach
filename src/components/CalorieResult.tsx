@@ -1,3 +1,4 @@
+// src/components/CalorieResult.tsx
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -28,6 +29,7 @@ interface CalorieResultProps {
 }
 
 export function CalorieResult({ profile, calculation }: CalorieResultProps) {
+  // ----- Icon/Badge by goal -----
   const goalIcon = useMemo(() => {
     switch (profile.goal) {
       case 'lose':
@@ -50,25 +52,37 @@ export function CalorieResult({ profile, calculation }: CalorieResultProps) {
     }
   }, [profile.goal]);
 
-  // กัน NaN/Infinity ถ้า calculation.deficitOrSurplus เป็น 0 หรือข้อมูลไม่ครบ
-  const weeklyWeightChangeRaw = useMemo(
-    () => calculateWeeklyWeightChange(calculation.deficitOrSurplus),
-    [calculation.deficitOrSurplus],
-  );
-  const weeklyWeightChange = Number.isFinite(weeklyWeightChangeRaw)
-    ? weeklyWeightChangeRaw
-    : 0;
+  // ----- Safe numbers -----
+  const deficitOrSurplus = Number(calculation.deficitOrSurplus || 0);
+  const weeklyWeightChange = useMemo(() => {
+    const v = calculateWeeklyWeightChange(deficitOrSurplus);
+    return Number.isFinite(v) ? v : 0;
+  }, [deficitOrSurplus]);
 
-  const timeToGoalRaw = useMemo(() => {
-    if (!profile.targetWeight) return 0;
-    return calculateTimeToGoal(profile, calculation.deficitOrSurplus);
-  }, [profile, calculation.deficitOrSurplus]);
-  const timeToGoal = Number.isFinite(timeToGoalRaw) ? timeToGoalRaw : 0;
+  const timeToGoal = useMemo(() => {
+    if (typeof profile.targetWeight !== 'number') return 0;
+    const v = calculateTimeToGoal(profile, deficitOrSurplus);
+    return Number.isFinite(v) ? v : 0;
+  }, [profile, deficitOrSurplus]);
 
   const weightDiff =
     typeof profile.targetWeight === 'number'
-      ? Math.abs(profile.weight - profile.targetWeight)
+      ? Math.abs(Number(profile.weight) - Number(profile.targetWeight))
       : 0;
+
+  // ----- Macro % (จากผลจริง) -----
+  const macroPct = useMemo(() => {
+    const pKcal = (Number(calculation.macroBreakdown.protein) || 0) * 4;
+    const cKcal = (Number(calculation.macroBreakdown.carbs) || 0) * 4;
+    const fKcal = (Number(calculation.macroBreakdown.fat) || 0) * 9;
+    const total = pKcal + cKcal + fKcal;
+    if (total <= 0) return { p: 0, c: 0, f: 0 };
+    return {
+      p: Math.round((pKcal / total) * 100),
+      c: Math.round((cKcal / total) * 100),
+      f: Math.max(0, 100 - Math.round((pKcal / total) * 100) - Math.round((cKcal / total) * 100)), // รวมเป็น 100%
+    };
+  }, [calculation.macroBreakdown]);
 
   return (
     <div className="space-y-6">
@@ -90,45 +104,19 @@ export function CalorieResult({ profile, calculation }: CalorieResultProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div
-              className="p-4 rounded-xl text-white"
-              style={{
-                background:
-                  'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))',
-              }}
-            >
-              <div className="text-2xl">
-                {profile.gender === 'male' ? 'ชาย' : 'หญิง'}
-              </div>
+            <div className="p-4 rounded-xl text-white" style={{ background: 'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))' }}>
+              <div className="text-2xl">{profile.gender === 'male' ? 'ชาย' : 'หญิง'}</div>
               <div className="text-sm opacity-90">เพศ</div>
             </div>
-            <div
-              className="p-4 rounded-xl text-white"
-              style={{
-                background:
-                  'linear-gradient(135deg, oklch(0.75 0.18 330), oklch(0.7 0.15 320))',
-              }}
-            >
+            <div className="p-4 rounded-xl text-white" style={{ background: 'linear-gradient(135deg, oklch(0.75 0.18 330), oklch(0.7 0.15 320))' }}>
               <div className="text-2xl">{profile.age}</div>
               <div className="text-sm opacity-90">ปี</div>
             </div>
-            <div
-              className="p-4 rounded-xl text-white"
-              style={{
-                background:
-                  'linear-gradient(135deg, oklch(0.7 0.15 280), oklch(0.65 0.18 300))',
-              }}
-            >
+            <div className="p-4 rounded-xl text-white" style={{ background: 'linear-gradient(135deg, oklch(0.7 0.15 280), oklch(0.65 0.18 300))' }}>
               <div className="text-2xl">{formatWeight(profile.weight)}</div>
               <div className="text-sm opacity-90">กก.</div>
             </div>
-            <div
-              className="p-4 rounded-xl text-white"
-              style={{
-                background:
-                  'linear-gradient(135deg, oklch(0.75 0.12 210), oklch(0.7 0.16 240))',
-              }}
-            >
+            <div className="p-4 rounded-xl text-white" style={{ background: 'linear-gradient(135deg, oklch(0.75 0.12 210), oklch(0.7 0.16 240))' }}>
               <div className="text-2xl">{profile.height}</div>
               <div className="text-sm opacity-90">ซม.</div>
             </div>
@@ -136,10 +124,7 @@ export function CalorieResult({ profile, calculation }: CalorieResultProps) {
           <div className="mt-6 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm">การออกกำลังกาย:</span>
-              <Badge
-                variant="outline"
-                className="text-sunset border-sunset bg-sunset/10"
-              >
+              <Badge variant="outline" className="text-sunset border-sunset bg-sunset/10">
                 <ActivityIcon className="h-3 w-3 mr-1" />
                 {getActivityText(profile.activityLevel)}
               </Badge>
@@ -156,96 +141,59 @@ export function CalorieResult({ profile, calculation }: CalorieResultProps) {
       </Card>
 
       {/* เป้าหมายเฉพาะ */}
-      {profile.targetWeight != null &&
-        profile.timeframe &&
-        profile.goal !== 'maintain' && (
-          <Card
-            style={{
-              boxShadow:
-                '0 4px 14px 0 oklch(0.75 0.18 330 / 0.2), 0 0 0 1px oklch(0.75 0.18 330 / 0.1)',
-            }}
-          >
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Scale className="h-5 w-5 text-sunset" />
-                เป้าหมายของคุณ
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div className="p-4 bg-muted/50 rounded-xl border border-muted">
-                    <div className="text-2xl text-muted-foreground">
-                      {formatWeight(profile.weight)}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      น้ำหนักปัจจุบัน
-                    </div>
-                  </div>
-                  <div
-                    className="p-4 text-white rounded-xl"
-                    style={{
-                      background:
-                        'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))',
-                    }}
-                  >
-                    <div className="text-2xl">
-                      {formatWeight(profile.targetWeight)}
-                    </div>
-                    <div className="text-sm opacity-90">น้ำหนักเป้าหมาย</div>
-                  </div>
+      {profile.targetWeight != null && profile.timeframe && profile.goal !== 'maintain' && (
+        <Card style={{ boxShadow: '0 4px 14px 0 oklch(0.75 0.18 330 / 0.2), 0 0 0 1px oklch(0.75 0.18 330 / 0.1)' }}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Scale className="h-5 w-5 text-sunset" />
+              เป้าหมายของคุณ
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div className="p-4 bg-muted/50 rounded-xl border border-muted">
+                  <div className="text-2xl text-muted-foreground">{formatWeight(profile.weight)}</div>
+                  <div className="text-sm text-muted-foreground">น้ำหนักปัจจุบัน</div>
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">การเปลี่ยนแปลง:</span>
-                    <span className="font-medium text-ocean">
-                      {formatWeight(weightDiff)} กก.
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">ระยะเวลา:</span>
-                    <span className="font-medium text-sunset">
-                      {profile.timeframe} สัปดาห์
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">ต่อสัปดาห์:</span>
-                    <span
-                      className={`font-medium ${
-                        Math.abs(weeklyWeightChange) > 1
-                          ? 'text-rose'
-                          : 'text-ocean'
-                      }`}
-                    >
-                      {formatWeight(Math.abs(weeklyWeightChange))} กก./สัปดาห์
-                    </span>
-                  </div>
+                <div className="p-4 text-white rounded-xl" style={{ background: 'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))' }}>
+                  <div className="text-2xl">{formatWeight(profile.targetWeight)}</div>
+                  <div className="text-sm opacity-90">น้ำหนักเป้าหมาย</div>
                 </div>
-
-                {timeToGoal > 0 && timeToGoal !== profile.timeframe && (
-                  <div className="p-4 bg-warning/10 text-warning-foreground rounded-xl border border-warning/20">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="h-4 w-4" />
-                      <span>
-                        ตามแผนแคลอรี่ที่คำนวณ คาดว่าจะใช้เวลา {timeToGoal}{' '}
-                        สัปดาห์
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
-            </CardContent>
-          </Card>
-        )}
+
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">การเปลี่ยนแปลง:</span>
+                  <span className="font-medium text-ocean">{formatWeight(weightDiff)} กก.</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">ระยะเวลา:</span>
+                  <span className="font-medium text-sunset">{profile.timeframe} สัปดาห์</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">ต่อสัปดาห์:</span>
+                  <span className={`font-medium ${Math.abs(weeklyWeightChange) > 1 ? 'text-rose' : 'text-ocean'}`}>
+                    {formatWeight(Math.abs(weeklyWeightChange))} กก./สัปดาห์
+                  </span>
+                </div>
+              </div>
+
+              {timeToGoal > 0 && timeToGoal !== profile.timeframe && (
+                <div className="p-4 bg-warning/10 text-warning-foreground rounded-xl border border-warning/20">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4" />
+                    <span>ตามแผนแคลอรี่ที่คำนวณ คาดว่าจะใช้เวลา {timeToGoal} สัปดาห์</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ผลการคำนวณแคลอรี่ */}
-      <Card
-        style={{
-          boxShadow:
-            '0 4px 14px 0 oklch(0.6 0.2 230 / 0.2), 0 0 0 1px oklch(0.6 0.2 230 / 0.1)',
-        }}
-      >
+      <Card style={{ boxShadow: '0 4px 14px 0 oklch(0.6 0.2 230 / 0.2), 0 0 0 1px oklch(0.6 0.2 230 / 0.1)' }}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Flame className="h-5 w-5 text-sunset" />
@@ -255,78 +203,48 @@ export function CalorieResult({ profile, calculation }: CalorieResultProps) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center p-6 bg-muted/30 rounded-xl border border-muted">
-              <div className="text-3xl mb-2 text-deep-blue">
-                {formatCalories(calculation.bmr)}
-              </div>
-              <div className="text-sm text-muted-foreground font-medium">
-                BMR
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                พลังงานพื้นฐาน
-              </div>
+              <div className="text-3xl mb-2 text-deep-blue">{formatCalories(calculation.bmr)}</div>
+              <div className="text-sm text-muted-foreground font-medium">BMR</div>
+              <div className="text-xs text-muted-foreground mt-1">พลังงานพื้นฐาน</div>
             </div>
             <div className="text-center p-6 bg-muted/30 rounded-xl border border-muted">
-              <div className="text-3xl mb-2 text-sunset">
-                {formatCalories(calculation.tdee)}
-              </div>
-              <div className="text-sm text-muted-foreground font-medium">
-                TDEE
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                พลังงานรวม/วัน
-              </div>
+              <div className="text-3xl mb-2 text-sunset">{formatCalories(calculation.tdee)}</div>
+              <div className="text-sm text-muted-foreground font-medium">TDEE</div>
+              <div className="text-xs text-muted-foreground mt-1">พลังงานรวม/วัน</div>
             </div>
-            <div
-              className="text-center p-6 text-white rounded-xl"
-              style={{
-                background:
-                  'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))',
-              }}
-            >
-              <div className="text-3xl mb-2">
-                {formatCalories(calculation.targetCalories)}
-              </div>
+            <div className="text-center p-6 text-white rounded-xl" style={{ background: 'linear-gradient(135deg, oklch(0.6 0.2 230), oklch(0.65 0.18 210))' }}>
+              <div className="text-3xl mb-2">{formatCalories(calculation.targetCalories)}</div>
               <div className="text-sm opacity-90 font-medium">เป้าหมาย</div>
               <div className="text-xs opacity-80 mt-1">แคลอรี่ที่ควรกิน</div>
             </div>
           </div>
 
-          {calculation.deficitOrSurplus !== 0 && (
+          {deficitOrSurplus !== 0 && (
             <div
               className="mt-6 p-4 rounded-xl border"
               style={{
                 backgroundColor:
-                  calculation.deficitOrSurplus < 0
-                    ? 'oklch(0.95 0.05 320 / 0.5)'
-                    : 'oklch(0.95 0.05 230 / 0.5)',
+                  deficitOrSurplus < 0 ? 'oklch(0.95 0.05 320 / 0.5)' : 'oklch(0.95 0.05 230 / 0.5)',
                 borderColor:
-                  calculation.deficitOrSurplus < 0
-                    ? 'oklch(0.65 0.2 320 / 0.3)'
-                    : 'oklch(0.6 0.2 230 / 0.3)',
+                  deficitOrSurplus < 0 ? 'oklch(0.65 0.2 320 / 0.3)' : 'oklch(0.6 0.2 230 / 0.3)',
               }}
             >
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  {calculation.deficitOrSurplus < 0 ? (
+                  {deficitOrSurplus < 0 ? (
                     <TrendingDown className="h-4 w-4 text-rose" />
                   ) : (
                     <TrendingUp className="h-4 w-4 text-ocean" />
                   )}
                   <span className="text-sm font-medium">
-                    {calculation.deficitOrSurplus < 0 ? 'Deficit' : 'Surplus'}:{' '}
-                    {formatCalories(Math.abs(calculation.deficitOrSurplus))}{' '}
-                    แคลอรี่/วัน
+                    {deficitOrSurplus < 0 ? 'Deficit' : 'Surplus'}: {formatCalories(Math.abs(deficitOrSurplus))} แคลอรี่/วัน
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-1">
-                  <div>
-                    คาดการณ์การเปลี่ยนแปลงน้ำหนัก:{' '}
-                    {formatWeight(Math.abs(weeklyWeightChange))} กก./สัปดาห์
-                  </div>
+                  <div>คาดการณ์การเปลี่ยนแปลงน้ำหนัก: {formatWeight(Math.abs(weeklyWeightChange))} กก./สัปดาห์</div>
                   {profile.targetWeight && profile.timeframe && (
                     <div>
-                      เป้าหมาย: {formatWeight(weightDiff)} กก. ใน{' '}
-                      {profile.timeframe} สัปดาห์
+                      เป้าหมาย: {formatWeight(weightDiff)} กก. ใน {profile.timeframe} สัปดาห์
                     </div>
                   )}
                 </div>
@@ -337,12 +255,7 @@ export function CalorieResult({ profile, calculation }: CalorieResultProps) {
       </Card>
 
       {/* สัดส่วนสารอาหาร */}
-      <Card
-        style={{
-          boxShadow:
-            '0 4px 14px 0 oklch(0.7 0.15 280 / 0.2), 0 0 0 1px oklch(0.7 0.15 280 / 0.1)',
-        }}
-      >
+      <Card style={{ boxShadow: '0 4px 14px 0 oklch(0.7 0.15 280 / 0.2), 0 0 0 1px oklch(0.7 0.15 280 / 0.1)' }}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-sunset" />
@@ -354,33 +267,33 @@ export function CalorieResult({ profile, calculation }: CalorieResultProps) {
             <div className="flex justify-between mb-3">
               <span className="font-medium text-lavender">โปรตีน</span>
               <span className="font-medium text-lavender">
-                {calculation.macroBreakdown.protein} กรัม (30%)
+                {calculation.macroBreakdown.protein} กรัม ({macroPct.p}%)
               </span>
             </div>
             <div className="h-3 bg-muted rounded-full overflow-hidden">
-              <div className="h-full w-[30%] bg-lavender rounded-full" />
+              <div className="h-full rounded-full bg-lavender" style={{ width: `${macroPct.p}%` }} />
             </div>
           </div>
           <div>
             <div className="flex justify-between mb-3">
               <span className="font-medium text-sky">คาร์โบไฮเดรต</span>
               <span className="font-medium text-sky">
-                {calculation.macroBreakdown.carbs} กรัม (40%)
+                {calculation.macroBreakdown.carbs} กรัม ({macroPct.c}%)
               </span>
             </div>
             <div className="h-3 bg-muted rounded-full overflow-hidden">
-              <div className="h-full w-[40%] bg-sky rounded-full" />
+              <div className="h-full rounded-full bg-sky" style={{ width: `${macroPct.c}%` }} />
             </div>
           </div>
           <div>
             <div className="flex justify-between mb-3">
               <span className="font-medium text-rose">ไขมัน</span>
               <span className="font-medium text-rose">
-                {calculation.macroBreakdown.fat} กรัม (30%)
+                {calculation.macroBreakdown.fat} กรัม ({macroPct.f}%)
               </span>
             </div>
             <div className="h-3 bg-muted rounded-full overflow-hidden">
-              <div className="h-full w-[30%] bg-rose rounded-full" />
+              <div className="h-full rounded-full bg-rose" style={{ width: `${macroPct.f}%` }} />
             </div>
           </div>
         </CardContent>
@@ -389,5 +302,5 @@ export function CalorieResult({ profile, calculation }: CalorieResultProps) {
   );
 }
 
-// ถ้าอยาก import แบบ default ก็เปิดบรรทัดด้านล่างได้
-// export default CalorieResult;
+// ใช้ได้ทั้งแบบ named และ default
+export default CalorieResult;

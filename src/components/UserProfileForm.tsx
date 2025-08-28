@@ -1,3 +1,4 @@
+// src/components/UserProfileForm.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -21,22 +22,29 @@ type Goal = UserProfile['goal'];
 export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
   const [submitting, setSubmitting] = useState(false);
 
+  // ค่าตั้งต้นที่พอใช้งานได้เลย
   const [profile, setProfile] = useState<Partial<UserProfile>>({
     gender: 'male',
     activityLevel: 'moderate',
     goal: 'maintain',
+    // ใส่ค่าทดสอบบางส่วนให้ฟอร์มผ่าน validation ง่ายขึ้น
+    age: 25,
+    height: 170,
+    weight: 65,
   });
 
   const [goalValidation, setGoalValidation] = useState<{ isValid: boolean; message?: string }>({
     isValid: true,
   });
 
-  // ------- helpers เพื่อกัน NaN / ค่าผิดรูป -------
+  // ------- helpers กัน NaN / ค่าว่าง -------
   const safeInt = (v: string) => {
+    if (v === '') return undefined;
     const n = parseInt(v, 10);
     return Number.isFinite(n) ? n : undefined;
   };
   const safeFloat = (v: string) => {
+    if (v === '') return undefined;
     const n = parseFloat(v);
     return Number.isFinite(n) ? n : undefined;
   };
@@ -70,7 +78,7 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
     !!profile.goal &&
     goalValidation.isValid;
 
-  // คำนวณข้อมูลสำหรับแสดงผล (preview)
+  // คำนวณข้อมูล preview
   const goalPreview = useMemo(() => {
     if (!profile.weight || !profile.targetWeight || !profile.timeframe || profile.goal === 'maintain') {
       return null;
@@ -85,9 +93,7 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
     if (!isFormValid) return;
     try {
       setSubmitting(true);
-      // แปลงเป็น UserProfile แบบครบถ้วนก่อนส่ง
-      const full = profile as UserProfile;
-      onSubmit(full);
+      onSubmit(profile as UserProfile);
     } finally {
       setSubmitting(false);
     }
@@ -174,6 +180,7 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
                   type="number"
                   min={15}
                   max={100}
+                  inputMode="numeric"
                   value={profile.age ?? ''}
                   onChange={(e) => setProfile((prev) => ({ ...prev, age: safeInt(e.target.value) }))}
                   placeholder="25"
@@ -190,6 +197,7 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
                   min={30}
                   max={200}
                   step={0.1}
+                  inputMode="decimal"
                   value={profile.weight ?? ''}
                   onChange={(e) => setProfile((prev) => ({ ...prev, weight: safeFloat(e.target.value) }))}
                   placeholder="65"
@@ -205,6 +213,7 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
                   type="number"
                   min={100}
                   max={250}
+                  inputMode="numeric"
                   value={profile.height ?? ''}
                   onChange={(e) => setProfile((prev) => ({ ...prev, height: safeInt(e.target.value) }))}
                   placeholder="170"
@@ -316,10 +325,9 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
                         min={30}
                         max={200}
                         step={0.1}
+                        inputMode="decimal"
                         value={profile.targetWeight ?? ''}
-                        onChange={(e) =>
-                          setProfile((prev) => ({ ...prev, targetWeight: safeFloat(e.target.value) }))
-                        }
+                        onChange={(e) => setProfile((prev) => ({ ...prev, targetWeight: safeFloat(e.target.value) }))}
                         placeholder={profile.goal === 'lose' ? '60' : '70'}
                         className="border-lavender/30 focus:border-lavender focus:ring-lavender/20"
                       />
@@ -333,6 +341,7 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
                         type="number"
                         min={1}
                         max={52}
+                        inputMode="numeric"
                         value={profile.timeframe ?? ''}
                         onChange={(e) => setProfile((prev) => ({ ...prev, timeframe: safeInt(e.target.value) }))}
                         placeholder="12"
@@ -347,33 +356,21 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
                       className="mt-4 p-3 rounded border"
                       style={{
                         background:
-                          goalPreview.weeklyChange > 1
-                            ? 'oklch(0.98 0.04 320 / 0.3)'
-                            : 'oklch(0.98 0.04 230 / 0.3)',
+                          goalPreview.weeklyChange > 1 ? 'oklch(0.98 0.04 320 / 0.3)' : 'oklch(0.98 0.04 230 / 0.3)',
                         borderColor:
-                          goalPreview.weeklyChange > 1
-                            ? 'oklch(0.65 0.2 320 / 0.3)'
-                            : 'oklch(0.6 0.2 230 / 0.3)',
+                          goalPreview.weeklyChange > 1 ? 'oklch(0.65 0.2 320 / 0.3)' : 'oklch(0.6 0.2 230 / 0.3)',
                       }}
                     >
                       <div className="text-sm space-y-1">
                         <div className="flex justify-between">
                           <span>การเปลี่ยนแปลง:</span>
-                          <span
-                            className={
-                              goalPreview.weeklyChange > 1 ? 'text-rose font-medium' : 'text-ocean font-medium'
-                            }
-                          >
+                          <span className={goalPreview.weeklyChange > 1 ? 'text-rose font-medium' : 'text-ocean font-medium'}>
                             {formatWeight(goalPreview.weightDifference)} กก. ใน {goalPreview.timeframe} สัปดาห์
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span>ต่อสัปดาห์:</span>
-                          <span
-                            className={
-                              goalPreview.weeklyChange > 1 ? 'text-rose font-medium' : 'text-ocean font-medium'
-                            }
-                          >
+                          <span className={goalPreview.weeklyChange > 1 ? 'text-rose font-medium' : 'text-ocean font-medium'}>
                             {formatWeight(goalPreview.weeklyChange)} กก./สัปดาห์
                           </span>
                         </div>
@@ -419,3 +416,6 @@ export function UserProfileForm({ onSubmit }: UserProfileFormProps) {
     </div>
   );
 }
+
+// ให้ import แบบ default ได้ด้วย
+export default UserProfileForm;

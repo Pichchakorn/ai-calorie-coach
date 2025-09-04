@@ -154,8 +154,7 @@ function AuthenticatedApp() {
           onCreatePlan={handleCreatePlan}
           onNavigateToSettings={() => setCurrentPage('settings')}
           recentPlans={recentPlans}
-          // ถ้า Dashboard ของคุณยังไม่มี prop นี้ ให้ลบแถวนี้ได้
-          onQuickPlan={handleQuickPlanFromProfile as any}
+          onQuickPlan={handleQuickPlanFromProfile}  
         />
       </div>
     );

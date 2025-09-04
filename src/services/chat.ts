@@ -4,9 +4,9 @@ export type ChatMessage = {
   content: string;
 };
 
-type ChatResponse = { reply: string };
+export type ChatResponse = { reply: string };
 
-// fetch พร้อม timeout กันแฮงก์
+// fetch พร้อม timeout
 async function fetchJSON(
   input: RequestInfo | URL,
   init: (RequestInit & { timeoutMs?: number }) = {}
@@ -22,10 +22,11 @@ async function fetchJSON(
   }
 }
 
+// --- ส่งบทสนทนาเต็มทั้ง array ไป backend ---
 export async function sendChat(
   messages: ChatMessage[],
   opts?: { timeoutMs?: number }
-): Promise<string> {
+): Promise<ChatResponse> {
   if (!Array.isArray(messages) || messages.length === 0) {
     throw new Error('messages must be a non-empty array');
   }
@@ -33,7 +34,7 @@ export async function sendChat(
   const res = await fetchJSON('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages }), // ส่งทั้ง history
     timeoutMs: opts?.timeoutMs ?? 20000,
   });
 
@@ -49,13 +50,16 @@ export async function sendChat(
   }
 
   const data = (await res.json()) as Partial<ChatResponse>;
-  return typeof data.reply === 'string' ? data.reply : '';
+  return { reply: typeof data.reply === 'string' ? data.reply : '' };
 }
 
 // helper ยิง prompt เดี่ยว ๆ
-export async function ask(prompt: string): Promise<string> {
+export async function ask(prompt: string): Promise<ChatResponse> {
   return sendChat([
-    { role: 'system', content: 'คุณคือผู้ช่วยโภชนาการ พูดไทย สุภาพ กระชับ' },
+    {
+      role: 'system',
+      content: 'คุณคือผู้ช่วยโภชนาการ พูดไทย สุภาพ กระชับ',
+    },
     { role: 'user', content: prompt },
   ]);
 }

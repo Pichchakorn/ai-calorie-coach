@@ -6,6 +6,7 @@ import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
 import { Alert, AlertDescription } from './ui/alert';
 import { useAuth } from '../contexts/AuthContext';
+import ChatWidget from './ChatWidget';
 import { UserProfile, DailyPlan } from '../types';
 import {
   formatCalories,
@@ -33,6 +34,7 @@ import {
   Info,
   Sparkles,
 } from 'lucide-react';
+
 
 interface DashboardProps {
   onCreatePlan: () => void;
@@ -198,6 +200,7 @@ export function Dashboard({
       </div>
 
       {/* Main Content */}
+      <ChatWidget />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column */}
         <div className="lg:col-span-2 space-y-6">

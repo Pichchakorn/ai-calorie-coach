@@ -193,15 +193,6 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               </div>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full border-lavender text-lavender hover:bg-lavender/10"
-              onClick={handleDemoFill}
-            >
-              เติมข้อมูลทดลอง (Demo)
-            </Button>
-
             <div className="text-center text-sm">
               <span className="text-muted-foreground">ยังไม่มีบัญชี? </span>
               <Button

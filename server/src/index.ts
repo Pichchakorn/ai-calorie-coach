@@ -14,13 +14,13 @@ app.use(
   })
 );
 
-// --- Request logger ---
+// ----- Request logger -----
 app.use((req, _res, next) => {
   console.log(`[REQ] ${req.method} ${req.url}`);
   next();
 });
 
-// --- OpenAI client (เป็น null ได้ ถ้าไม่มีคีย์) ---
+// ----- OpenAI client (อาจเป็น null ถ้าไม่มีคีย์) -----
 const openai: OpenAI | null = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -104,7 +104,7 @@ function withTimeout<T>(p: Promise<T>, ms = 20000) {
   });
 }
 
-// แผนสตับสำหรับทดสอบ/กรณี AI ล้มเหลว
+// สตับเมนูพื้นฐาน (เวลา AI ล้มเหลว/ไม่มีคีย์)
 function samplePlan(): MealPlanOut {
   return {
     breakfast: [
@@ -170,8 +170,7 @@ app.post('/api/meal', async (req, res) => {
         `ข้อมูลผู้ใช้: เพศ ${profile!.gender}, อายุ ${profile!.age}, ส่วนสูง ${profile!.height} ซม., น้ำหนัก ${profile!.weight} กก., กิจกรรม ${profile!.activityLevel}`,
         `ข้อกำหนดผลลัพธ์:`,
         `- ตอบกลับเป็น JSON เท่านั้น (อย่าใส่ข้อความอื่น)`,
-        `- โครงสร้าง JSON:`,
-        `{"breakfast":[{"name":"","portion":"","calories":0,"protein":0,"carbs":0,"fat":0}],"lunch":[],"dinner":[],"snacks":[],"totalCalories":0}`,
+        `- โครงสร้าง JSON: {"breakfast":[{"name":"","portion":"","calories":0,"protein":0,"carbs":0,"fat":0}],"lunch":[],"dinner":[],"snacks":[],"totalCalories":0}`,
         `- totalCalories ต้องเท่าผลรวม calories ของทุกรายการ`,
         `- ห้ามให้ totalCalories เกิน ${targetCalories}`,
         `- หลีกเลี่ยงของทอดซ้ำ ๆ, โปรตีนพอเหมาะ, ใช้หน่วยกรัม/ถ้วย/ช้อน`,
@@ -211,10 +210,42 @@ app.post('/api/meal', async (req, res) => {
     return res.json(final);
   } catch (err: any) {
     console.error('AI /api/meal error:', err?.stack || err?.message || err);
-    // fallback เสมอถ้ามีปัญหา เพื่อไม่ให้ฝั่งหน้าเว็บล่ม
+    // fallback เสมอ (กันเว็บล่ม)
     const stub = samplePlan();
     const tc = Number(req.body?.targetCalories);
     return res.json(Number.isFinite(tc) ? clampPlanToTarget(stub, tc) : stub);
+  }
+});
+
+// ---------- /api/chat (สำหรับ chatbot) ----------
+app.post('/api/chat', async (req, res) => {
+  try {
+    const messages = (req.body?.messages ?? []) as Array<{ role: 'user'|'assistant'|'system'; content: string }>;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'messages must be a non-empty array' });
+    }
+
+    // ถ้าไม่มีคีย์ → ตอบสตับ
+    if (!openai) {
+      const last = messages[messages.length - 1]?.content ?? '';
+      return res.json({ reply: `สวัสดี (stub): คุณพิมพ์ว่า "${last}"` });
+    }
+
+    const completion = await withTimeout(
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages,
+        temperature: 0.7,
+      }),
+      20_000
+    );
+
+    const reply = completion.choices[0]?.message?.content ?? '';
+    return res.json({ reply });
+  } catch (err: any) {
+    console.error('/api/chat error:', err?.stack || err?.message || err);
+    const last = (req.body?.messages ?? []).slice(-1)[0]?.content ?? '';
+    return res.json({ reply: `ขออภัย แชตมีปัญหา (stub). ข้อความล่าสุด: "${last}"` });
   }
 });
 
@@ -230,7 +261,6 @@ app.use((err: any, _req: any, res: any, _next: any) => {
 // ---------- start ----------
 const PORT = Number(process.env.PORT || 8787);
 console.log('OPENAI key loaded?', !!process.env.OPENAI_API_KEY);
-
 app.listen(PORT, () => {
   console.log(`✅ AI server listening on http://localhost:${PORT}`);
 });
